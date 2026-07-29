@@ -17,7 +17,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         private List<DebugInfoBoundsEntry> _boundsList;
         private byte[] _boundsBytes;
         private List<NativeVarInfo> _variablesList;
-        private Machine _machine;
+        private MachineType _machine;
 
         public DebugInfo(RuntimeFunction runtimeFunction, int offset)
         {
