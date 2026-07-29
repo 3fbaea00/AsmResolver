@@ -1,3 +1,4 @@
+using AsmResolver.PE.File;
 using System;
 
 namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
@@ -24,7 +25,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
 
         public GcTransition() { }
 
-        public GcTransition(int codeOffset, int slotId, bool isLive, int chunkId, GcSlotTable slotTable, Machine machine)
+        public GcTransition(int codeOffset, int slotId, bool isLive, int chunkId, GcSlotTable slotTable, MachineType machine)
         {
             CodeOffset = codeOffset;
             SlotId = slotId;
@@ -33,7 +34,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
             SlotState = GetSlotState(slotTable, machine);
         }
 
-        public string GetSlotState(GcSlotTable slotTable, Machine machine)
+        public string GetSlotState(GcSlotTable slotTable, MachineType machine)
         {
             GcSlotTable.GcSlot slot = slotTable.GcSlots[SlotId];
             string slotStr = "";
@@ -42,28 +43,21 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
                 Type regType;
                 switch (machine)
                 {
-                    case Machine.ArmThumb2:
-                        regType = typeof(Arm.Registers);
-                        break;
-
-                    case Machine.Arm64:
+                    case MachineType.Arm64:
                         regType = typeof(Arm64.Registers);
                         break;
 
-                    case Machine.Amd64:
+                    case MachineType.Amd64:
                         regType = typeof(Amd64.Registers);
                         break;
 
-                    case Machine.LoongArch64:
+                    case MachineType.LoongArch64:
                         regType = typeof(LoongArch64.Registers);
                         break;
 
-                    case Machine.RiscV64:
+                    case MachineType.RiscV64:
                         regType = typeof(RiscV64.Registers);
                         break;
-
-                    case WasmMachine.Wasm32:
-                        throw new NotImplementedException($"No implementation for machine type Wasm32.");
 
                     default:
                         throw new NotImplementedException();

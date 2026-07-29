@@ -28,7 +28,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
                 }
             }
 
-            public override GcSlotFlags WriteTo(StringBuilder sb, Machine machine, GcSlotFlags prevFlags)
+            public override GcSlotFlags WriteTo(StringBuilder sb, MachineType machine, GcSlotFlags prevFlags)
             {
                 if (prevFlags != Flags)
                 {
@@ -67,8 +67,6 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
                     case MachineType.RiscV64:
                         return ((RiscV64.Registers)registerNumber).ToString();
 
-                    case WasmMachine.Wasm32:
-                        throw new NotImplementedException("No implementation for machine type Wasm32.");
                     default:
                         throw new NotImplementedException(machine.ToString());
                 }
@@ -81,7 +79,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
         public uint NumUntracked { get; set; }
         public uint NumSlots { get; set; }
 
-        private Machine _machine;
+        private MachineType _machine;
 
         public uint NumTracked
         {
@@ -98,7 +96,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
         /// <summary>
         /// based on <a href="https://github.com/dotnet/runtime/blob/main/src/coreclr/vm/gcinfodecoder.cpp">GcSlotDecoder::DecodeSlotTable</a>
         /// </summary>
-        public GcSlotTable(NativeReader imageReader, Machine machine, GcInfoTypes gcInfoTypes, ref int bitOffset)
+        public GcSlotTable(NativeReader imageReader, MachineType machine, GcInfoTypes gcInfoTypes, ref int bitOffset)
         {
             _machine = machine;
 
@@ -151,7 +149,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
             }
         }
 
-        private void DecodeStackSlots(NativeReader imageReader, Machine machine, GcInfoTypes gcInfoTypes, uint nSlots, bool isUntracked, ref int bitOffset)
+        private void DecodeStackSlots(NativeReader imageReader, MachineType machine, GcInfoTypes gcInfoTypes, uint nSlots, bool isUntracked, ref int bitOffset)
         {
             // We have stack slots left and more room to predecode
             GcStackSlotBase spBase = (GcStackSlotBase)imageReader.ReadBits(2, ref bitOffset);

@@ -1,3 +1,4 @@
+using AsmResolver.PE.File;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -51,7 +52,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             }
         }
 
-        public Machine Machine
+        public MachineType Machine
         {
             get
             {
@@ -63,22 +64,19 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         /// <summary>
         /// Convert a register number in debug info into a machine-specific register
         /// </summary>
-        public static string GetPlatformSpecificRegister(Machine machine, int regnum)
+        public static string GetPlatformSpecificRegister(MachineType machine, int regnum)
         {
             switch (machine)
             {
-                case Machine.I386:
+                case MachineType.I386:
                     return ((x86.Registers)regnum).ToString();
-                case Machine.Amd64:
+                case MachineType.Amd64:
                     return ((Amd64.Registers)regnum).ToString();
-                case Machine.Arm:
-                case Machine.ArmThumb2:
-                    return ((Arm.Registers)regnum).ToString();
-                case Machine.Arm64:
+                case MachineType.Arm64:
                     return ((Arm64.Registers)regnum).ToString();
-                case Machine.LoongArch64:
+                case MachineType.LoongArch64:
                     return ((LoongArch64.Registers)regnum).ToString();
-                case Machine.RiscV64:
+                case MachineType.RiscV64:
                     return ((RiscV64.Registers)regnum).ToString();
                 case WasmMachine.Wasm32:
                     return $"NYI '{regnum}'"; // WASM-TODO Implement this correctly.
@@ -97,7 +95,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             int offset = _offset;
             _boundsList = new List<DebugInfoBoundsEntry>();
             _variablesList = new List<NativeVarInfo>();
-            Machine machine = _readyToRunReader.Machine;
+            MachineType machine = _readyToRunReader.Machine;
             NativeReader imageReader = _readyToRunReader.ImageReader;
             _machine = machine;
 
@@ -333,7 +331,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         private int ReadEncodedStackOffset(NibbleReader reader)
         {
             int offset = reader.ReadInt();
-            if (_machine == Machine.I386)
+            if (_machine == MachineType.I386)
             {
                 offset *= 4; // sizeof(DWORD)
             }

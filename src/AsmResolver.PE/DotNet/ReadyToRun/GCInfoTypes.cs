@@ -1,3 +1,4 @@
+using AsmResolver.PE.File;
 using System;
 using System.Text;
 
@@ -82,7 +83,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
     /// </summary>
     public class GcInfoTypes
     {
-        private Machine _target;
+        private MachineType _target;
         private bool _denormalizeCodeOffsets;
 
         internal int SIZE_OF_RETURN_KIND_SLIM { get; } = 2;
@@ -117,34 +118,18 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         internal int NUM_NORM_CODE_OFFSETS_PER_CHUNK_LOG2 { get; } = 6;
         internal bool HAS_FIXED_STACK_PARAMETER_SCRATCH_AREA { get; } = true;
 
-        internal GcInfoTypes(Machine machine, bool denormalizeCodeOffsets)
+        internal GcInfoTypes(MachineType machine, bool denormalizeCodeOffsets)
         {
             _target = machine;
             _denormalizeCodeOffsets = denormalizeCodeOffsets;
 
             switch (machine)
             {
-                case Machine.Amd64:
+                case MachineType.Amd64:
                     SIZE_OF_RETURN_KIND_FAT = 4;
                     NUM_SAFE_POINTS_ENCBASE = 2;
                     break;
-                case Machine.ArmThumb2:
-                    CODE_LENGTH_ENCBASE = 7;
-                    SECURITY_OBJECT_STACK_SLOT_ENCBASE = 5;
-                    GS_COOKIE_STACK_SLOT_ENCBASE = 5;
-                    PSP_SYM_STACK_SLOT_ENCBASE = 5;
-                    GENERICS_INST_CONTEXT_STACK_SLOT_ENCBASE = 5;
-                    STACK_BASE_REGISTER_ENCBASE = 1;
-                    SIZE_OF_EDIT_AND_CONTINUE_PRESERVED_AREA_ENCBASE = 3;
-                    REVERSE_PINVOKE_FRAME_ENCBASE = 5;
-                    NUM_INTERRUPTIBLE_RANGES_ENCBASE = 2;
-                    INTERRUPTIBLE_RANGE_DELTA1_ENCBASE = 4;
-                    NUM_STACK_SLOTS_ENCBASE = 3;
-                    NUM_UNTRACKED_SLOTS_ENCBASE = 3;
-                    REGISTER_ENCBASE = 2;
-                    REGISTER_DELTA_ENCBASE = 1;
-                    break;
-                case Machine.Arm64:
+                case MachineType.Arm64:
                     SIZE_OF_RETURN_KIND_FAT = 4;
                     STACK_BASE_REGISTER_ENCBASE = 2;
                     NUM_REGISTERS_ENCBASE = 3;
@@ -177,8 +162,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                     LIVESTATE_RLE_SKIP_ENCBASE = 4;
                     HAS_FIXED_STACK_PARAMETER_SCRATCH_AREA = false;
                     break;
-
-                case Machine.I386:
+                case MachineType.I386:
                     CODE_LENGTH_ENCBASE = 6;
                     NORM_PROLOG_SIZE_ENCBASE = 4;
                     SIZE_OF_EDIT_AND_CONTINUE_PRESERVED_AREA_ENCBASE = 3;
@@ -191,12 +175,12 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                     NUM_UNTRACKED_SLOTS_ENCBASE = 5;
                     REGISTER_DELTA_ENCBASE = 3;
                     break;
-                case Machine.LoongArch64:
+                case MachineType.LoongArch64:
                     SIZE_OF_RETURN_KIND_FAT = 4;
                     STACK_BASE_REGISTER_ENCBASE = 2;
                     NUM_REGISTERS_ENCBASE = 3;
                     break;
-                case Machine.RiscV64:
+                case MachineType.RiscV64:
                     SIZE_OF_RETURN_KIND_FAT = 4;
                     STACK_BASE_REGISTER_ENCBASE = 2;
                     NUM_REGISTERS_ENCBASE = 3;
@@ -208,11 +192,10 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         {
             switch (_target)
             {
-                case Machine.ArmThumb2:
-                case Machine.RiscV64:
+                case MachineType.RiscV64:
                     return (x << 1);
-                case Machine.Arm64:
-                case Machine.LoongArch64:
+                case MachineType.Arm64:
+                case MachineType.LoongArch64:
                     return (x << 2);
             }
             return x;
@@ -222,11 +205,10 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         {
             switch (_target)
             {
-                case Machine.ArmThumb2:
-                case Machine.RiscV64:
+                case MachineType.RiscV64:
                     return (x >> 1);
-                case Machine.Arm64:
-                case Machine.LoongArch64:
+                case MachineType.Arm64:
+                case MachineType.LoongArch64:
                     return (x >> 2);
             }
             return x;
@@ -250,14 +232,12 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         {
             switch (_target)
             {
-                case Machine.Amd64:
-                    return (x << 3);
-                case Machine.ArmThumb2:
-                    return (x << 2);
-                case Machine.Arm64:
-                case Machine.LoongArch64:
-                case Machine.RiscV64:
-                    return (x << 3);
+                case MachineType.Amd64:
+                    return x << 3;
+                case MachineType.Arm64:
+                case MachineType.LoongArch64:
+                case MachineType.RiscV64:
+                    return x << 3;
             }
             return x;
         }
@@ -266,16 +246,14 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         {
             switch (_target)
             {
-                case Machine.Amd64:
-                    return (x ^ 5);
-                case Machine.ArmThumb2:
-                    return ((x ^ 7) + 4);
-                case Machine.Arm64:
-                    return (x ^ 29);
-                case Machine.LoongArch64:
-                    return ((x ^ 22) & 0x3);
-                case Machine.RiscV64:
-                    return (x ^ 8);
+                case MachineType.Amd64:
+                    return x ^ 5;
+                case MachineType.Arm64:
+                    return x ^ 29;
+                case MachineType.LoongArch64:
+                    return (x ^ 22) & 0x3;
+                case MachineType.RiscV64:
+                    return x ^ 8;
             }
             return x;
         }
@@ -284,14 +262,12 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         {
             switch (_target)
             {
-                case Machine.Amd64:
-                    return (x << 3);
-                case Machine.ArmThumb2:
-                    return (x << 2);
-                case Machine.Arm64:
-                case Machine.LoongArch64:
-                case Machine.RiscV64:
-                    return (x << 3);
+                case MachineType.Amd64:
+                    return x << 3;
+                case MachineType.Arm64:
+                case MachineType.LoongArch64:
+                case MachineType.RiscV64:
+                    return x << 3;
             }
             return x;
         }

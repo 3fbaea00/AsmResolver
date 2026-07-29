@@ -1,3 +1,4 @@
+using AsmResolver.PE.File;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -60,7 +61,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
 
     public abstract class BaseGcSlot
     {
-        public abstract GcSlotFlags WriteTo(StringBuilder sb, Machine machine, GcSlotFlags prevFlags);
+        public abstract GcSlotFlags WriteTo(StringBuilder sb, MachineType machine, GcSlotFlags prevFlags);
     }
 
     public abstract class BaseGcInfo
@@ -237,10 +238,6 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             else if (UnwindInfo is x86.UnwindInfo x86Info)
             {
                 return (int)x86Info.FunctionLength;
-            }
-            else if (UnwindInfo is Arm.UnwindInfo armInfo)
-            {
-                return (int)armInfo.FunctionLength;
             }
             else if (UnwindInfo is Arm64.UnwindInfo arm64Info)
             {
@@ -538,7 +535,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                         _readyToRunReader.ReadyToRunHeader.MajorVersion,
                         _readyToRunReader.ReadyToRunHeader.MinorVersion);
 
-                    if (_readyToRunReader.Machine == Machine.I386)
+                    if (_readyToRunReader.Machine == MachineType.I386)
                     {
                         _gcInfo = new x86.GcInfo(_readyToRunReader.ImageReader, gcInfoOffset, gcInfoVersion);
                     }
@@ -629,21 +626,15 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                     runtimeFunctionId = coldRuntimeFunctionId;
                 }
                 int startRva = _readyToRunReader.ImageReader.ReadInt32(ref curOffset);
-                bool isFunclet = false;
-                if (_readyToRunReader.Machine == Machine.ArmThumb2)
-                {
-                    // The low bit of this address is set since the function contains thumb code.
-                    // Clear this bit in order to get the "real" RVA of the start of the function.
-                    startRva = (int)(startRva & ~1);
-                }
-                else if (_readyToRunReader.Machine == WasmMachine.Wasm32)
+                bool isFunclet = false;                
+                if (_readyToRunReader.Machine == WasmMachine.Wasm32)
                 {
                     // On WASM, bit 31 is the funclet flag and bits 30:0 are the virtual IP.
                     isFunclet = (startRva & unchecked((int)0x80000000)) != 0;
                     startRva = (int)(startRva & 0x7FFFFFFF);
                 }
                 int endRva = -1;
-                if (_readyToRunReader.Machine == Machine.Amd64)
+                if (_readyToRunReader.Machine == MachineType.Amd64)
                 {
                     endRva = _readyToRunReader.ImageReader.ReadInt32(ref curOffset);
                 }
@@ -651,27 +642,23 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                 int unwindOffset = _readyToRunReader.CompositeReader.GetOffset(unwindRva);
 
                 BaseUnwindInfo unwindInfo = null;
-                if (_readyToRunReader.Machine == Machine.I386)
+                if (_readyToRunReader.Machine == MachineType.I386)
                 {
                     unwindInfo = new x86.UnwindInfo(_readyToRunReader.ImageReader, unwindOffset);
                 }
-                else if (_readyToRunReader.Machine == Machine.Amd64)
+                else if (_readyToRunReader.Machine == MachineType.Amd64)
                 {
                     unwindInfo = new Amd64.UnwindInfo(_readyToRunReader.ImageReader, unwindOffset);
                 }
-                else if (_readyToRunReader.Machine == Machine.ArmThumb2)
-                {
-                    unwindInfo = new Arm.UnwindInfo(_readyToRunReader.ImageReader, unwindOffset);
-                }
-                else if (_readyToRunReader.Machine == Machine.Arm64)
+                else if (_readyToRunReader.Machine == MachineType.Arm64)
                 {
                     unwindInfo = new Arm64.UnwindInfo(_readyToRunReader.ImageReader, unwindOffset);
                 }
-                else if (_readyToRunReader.Machine == Machine.LoongArch64)
+                else if (_readyToRunReader.Machine == MachineType.LoongArch64)
                 {
                     unwindInfo = new LoongArch64.UnwindInfo(_readyToRunReader.ImageReader, unwindOffset);
                 }
-                else if (_readyToRunReader.Machine == Machine.RiscV64)
+                else if (_readyToRunReader.Machine == MachineType.RiscV64)
                 {
                     unwindInfo = new RiscV64.UnwindInfo(_readyToRunReader.ImageReader, unwindOffset);
                 }
@@ -682,7 +669,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
 
                 if (i == 0 && unwindInfo != null)
                 {
-                    if (_readyToRunReader.Machine == Machine.I386)
+                    if (_readyToRunReader.Machine == MachineType.I386)
                     {
                         GcInfoRva = unwindRva;
                     }

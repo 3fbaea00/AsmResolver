@@ -22,11 +22,6 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         Unknown = -1
     }
 
-    public static class WasmMachine
-    {
-        public const Machine Wasm32 = (Machine)0xFFFE;
-    }
-
     public struct InstanceMethod
     {
         public byte Bucket;
