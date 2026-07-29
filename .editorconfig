@@ -77,3 +77,8 @@ indent_size = 2
 indent_style = space
 indent_size = 4
 tab_width = 4
+
+# Remove aafter all shit
+dotnet_diagnostic.CS1591.severity = none
+dotnet_diagnostic.CS8618.severity = none
+dotnet_diagnostic.CS8603.severity = none

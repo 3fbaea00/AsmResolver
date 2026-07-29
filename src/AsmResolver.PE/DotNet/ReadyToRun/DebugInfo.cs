@@ -1,154 +1,344 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Threading;
-using AsmResolver.Collections;
-using AsmResolver.IO;
-using AsmResolver.PE.File;
-using AsmResolver.Shims;
+using System.Diagnostics;
 
 namespace AsmResolver.PE.DotNet.ReadyToRun
 {
     /// <summary>
-    /// Provides additional debug information to a precompiled method body.
+    /// Represents the debug information for a single method in the ready-to-run image.
+    /// See <a href="https://github.com/dotnet/runtime/blob/main/src/coreclr/inc/cordebuginfo.h">src\inc\cordebuginfo.h</a> for
+    /// the fundamental types this is based on.
     /// </summary>
-    public class DebugInfo : SegmentBase
+    public class DebugInfo
     {
-        private IList<DebugInfoBounds>? _bounds;
-        private IList<DebugInfoVariable>? _variables;
-        private byte[]? _serialized;
-        private bool _is32Bit;
+        private readonly RuntimeFunction _runtimeFunction;
+        private readonly int _offset;
+        private List<DebugInfoBoundsEntry> _boundsList;
+        private byte[] _boundsBytes;
+        private List<NativeVarInfo> _variablesList;
+        private Machine _machine;
 
-        /// <summary>
-        /// Gets a collection of bounds information associated to the method.
-        /// </summary>
-        public IList<DebugInfoBounds> Bounds
+        public DebugInfo(RuntimeFunction runtimeFunction, int offset)
+        {
+            this._runtimeFunction = runtimeFunction;
+            this._offset = offset;
+        }
+
+        public List<DebugInfoBoundsEntry> BoundsList
         {
             get
             {
-                if (_bounds is null)
-                    Interlocked.CompareExchange(ref _bounds, GetBounds(), null);
-                return _bounds;
+                EnsureInitialized();
+                return _boundsList;
             }
         }
 
-        /// <summary>
-        /// Gets a collection of native variable information associated to the method.
-        /// </summary>
-        public IList<DebugInfoVariable> Variables
+        public byte[] BoundsBytes
         {
             get
             {
-                if (_variables is null)
-                    Interlocked.CompareExchange(ref _variables, GetVariables(), null);
-                return _variables;
+                EnsureInitialized();
+                return _boundsBytes;
             }
         }
 
-        /// <summary>
-        /// Obtains the bounds information of the method.
-        /// </summary>
-        /// <returns>The bounds.</returns>
-        /// <remarks>
-        /// This method is called upon initialization of the <see cref="Bounds"/> property.
-        /// </remarks>
-        protected virtual IList<DebugInfoBounds> GetBounds() => new List<DebugInfoBounds>();
-
-        /// <summary>
-        /// Obtains the native variable information of the method.
-        /// </summary>
-        /// <returns>The variables.</returns>
-        /// <remarks>
-        /// This method is called upon initialization of the <see cref="Variables"/> property.
-        /// </remarks>
-        protected virtual IList<DebugInfoVariable> GetVariables() => new List<DebugInfoVariable>();
-
-        /// <inheritdoc />
-        public override void UpdateOffsets(in RelocationParameters parameters)
+        public List<NativeVarInfo> VariablesList
         {
-            base.UpdateOffsets(in parameters);
-            _serialized = Serialize();
-            _is32Bit = parameters.Is32Bit;
-        }
-
-        /// <inheritdoc />
-        public override uint GetPhysicalSize()
-        {
-            _serialized ??= Serialize();
-            return (uint) _serialized.Length;
-        }
-
-        /// <inheritdoc />
-        public override void Write(BinaryStreamWriter writer)
-        {
-            _serialized ??= Serialize();
-            writer.WriteBytes(_serialized);
-        }
-
-        private byte[] Serialize()
-        {
-            byte[] bounds = SerializeBounds();
-            byte[] variables = SerializeVariables();
-
-            using var stream = new MemoryStream();
-            var writer = new BinaryStreamWriter(stream);
-
-            NativeFormat.EncodeUnsigned(writer, 0); // lookback
-
-            var nibbleWriter = new NibbleWriter(writer);
-            nibbleWriter.Write3BitEncodedUInt((uint) bounds.Length);
-            nibbleWriter.Write3BitEncodedUInt((uint) variables.Length);
-            nibbleWriter.Flush();
-
-            writer.WriteBytes(bounds);
-            writer.WriteBytes(variables);
-
-            return stream.ToArray();
-        }
-
-        private byte[] SerializeBounds()
-        {
-            if (Bounds.Count == 0)
-                return ArrayShim.Empty<byte>();
-
-            using var stream = new MemoryStream();
-            var writer = new NibbleWriter(new BinaryStreamWriter(stream));
-
-            writer.Write3BitEncodedUInt((uint) Bounds.Count);
-
-            uint nativeOffset = 0;
-            for (int i = 0; i < Bounds.Count; i++)
+            get
             {
-                var bound = Bounds[i];
+                EnsureInitialized();
+                return _variablesList;
+            }
+        }
 
-                writer.Write3BitEncodedUInt(bound.NativeOffset - nativeOffset);
-                writer.Write3BitEncodedUInt(bound.ILOffset - DebugInfoBounds.EpilogOffset);
-                writer.Write3BitEncodedUInt((uint) bound.Attributes);
+        public Machine Machine
+        {
+            get
+            {
+                EnsureInitialized();
+                return _machine;
+            }
+        }
 
-                nativeOffset = bound.NativeOffset;
+        /// <summary>
+        /// Convert a register number in debug info into a machine-specific register
+        /// </summary>
+        public static string GetPlatformSpecificRegister(Machine machine, int regnum)
+        {
+            switch (machine)
+            {
+                case Machine.I386:
+                    return ((x86.Registers)regnum).ToString();
+                case Machine.Amd64:
+                    return ((Amd64.Registers)regnum).ToString();
+                case Machine.Arm:
+                case Machine.ArmThumb2:
+                    return ((Arm.Registers)regnum).ToString();
+                case Machine.Arm64:
+                    return ((Arm64.Registers)regnum).ToString();
+                case Machine.LoongArch64:
+                    return ((LoongArch64.Registers)regnum).ToString();
+                case Machine.RiscV64:
+                    return ((RiscV64.Registers)regnum).ToString();
+                case WasmMachine.Wasm32:
+                    return $"NYI '{regnum}'"; // WASM-TODO Implement this correctly.
+                default:
+                    throw new NotImplementedException($"No implementation for machine type {machine}.");
+            }
+        }
+
+        private void EnsureInitialized()
+        {
+            if (_boundsList != null)
+            {
+                return;
+            }
+            ReadyToRunReader _readyToRunReader = _runtimeFunction.ReadyToRunReader;
+            int offset = _offset;
+            _boundsList = new List<DebugInfoBoundsEntry>();
+            _variablesList = new List<NativeVarInfo>();
+            Machine machine = _readyToRunReader.Machine;
+            NativeReader imageReader = _readyToRunReader.ImageReader;
+            _machine = machine;
+
+            // Get the id of the runtime function from the NativeArray
+            uint lookback = 0;
+            uint debugInfoOffset = imageReader.DecodeUnsigned((uint)offset, ref lookback);
+
+            if (lookback != 0)
+            {
+                debugInfoOffset = (uint)offset - lookback;
             }
 
-            writer.Flush();
-            return stream.ToArray();
+            NibbleReader reader = new NibbleReader(imageReader, (int)debugInfoOffset);
+
+            uint boundsByteCountOrIndicator = reader.ReadUInt();
+
+            uint boundsByteCount = 0;
+            uint variablesByteCount = 0;
+
+            const int DebugInfoFat = 0;
+            if (_runtimeFunction.ReadyToRunReader.ReadyToRunHeader.MajorVersion >= 17 && boundsByteCountOrIndicator == DebugInfoFat)
+            {
+                boundsByteCount = reader.ReadUInt();
+                variablesByteCount = reader.ReadUInt();
+                reader.ReadUInt(); // uninstrumented bounds
+                reader.ReadUInt(); // patchpoint info
+                reader.ReadUInt(); // rich debug info
+                reader.ReadUInt(); // async info
+            }
+            else
+            {
+                boundsByteCount = boundsByteCountOrIndicator;
+                variablesByteCount = reader.ReadUInt();
+            }
+
+            int boundsOffset = reader.GetNextByteOffset();
+            int variablesOffset = (int)(boundsOffset + boundsByteCount);
+
+            _boundsBytes = new byte[boundsByteCount];
+            int boundsOffsetMutable = boundsOffset;
+            imageReader.ReadSpanAt(ref boundsOffsetMutable, _boundsBytes.AsSpan());
+
+            if (boundsByteCount > 0)
+            {
+                ParseBounds(imageReader, boundsOffset);
+            }
+
+            if (variablesByteCount > 0)
+            {
+                ParseNativeVarInfo(imageReader, variablesOffset);
+            }
         }
 
-        private byte[] SerializeVariables()
+        private void ParseBounds(NativeReader imageReader, int offset)
         {
-            if (Variables.Count == 0)
-                return ArrayShim.Empty<byte>();
+            // Bounds info contains (Native Offset, IL Offset, flags)
+            // - Sorted by native offset (so use a delta encoding for that).
+            // - IL offsets aren't sorted
+            //   They may also include a sentinel value from MappingTypes.
+            // - flags is 3 independent bits.
+            int version = _runtimeFunction.ReadyToRunReader.ReadyToRunHeader.MajorVersion;
+            if (version >= 16)
+            {
+                NibbleReader reader = new NibbleReader(imageReader, offset);
+                uint boundsEntryCount = reader.ReadUInt();
+                uint bitsForNativeDelta = reader.ReadUInt() + 1; // Number of bits needed for native deltas
+                uint bitsForILOffsets = reader.ReadUInt() + 1; // Number of bits needed for IL offsets
 
-            using var stream = new MemoryStream();
-            var writer = new NibbleWriter(new BinaryStreamWriter(stream));
+                uint bitsForSourceType = version >= 17 ? 3u : 2u;
+                uint bitsPerEntry = bitsForNativeDelta + bitsForILOffsets + bitsForSourceType;
+                ulong bitsMeaningfulMask = (1UL << ((int)bitsPerEntry)) - 1;
+                int offsetOfActualBoundsData = reader.GetNextByteOffset();
 
-            writer.Write3BitEncodedUInt((uint) Variables.Count);
+                uint bitsCollected = 0;
+                ulong bitTemp = 0;
+                uint curBoundsProcessed = 0;
 
-            for (int i = 0; i < Variables.Count; i++)
-                Variables[i].Write(_is32Bit ? MachineType.I386 : MachineType.Amd64, ref writer);
+                uint previousNativeOffset = 0;
 
-            writer.Flush();
-            return stream.ToArray();
+                while (curBoundsProcessed < boundsEntryCount)
+                {
+                    bitTemp |= ((uint)imageReader[offsetOfActualBoundsData++]) << (int)bitsCollected;
+                    bitsCollected += 8;
+                    while (bitsCollected >= bitsPerEntry)
+                    {
+                        ulong mappingDataEncoded = bitsMeaningfulMask & bitTemp;
+                        bitTemp >>= (int)bitsPerEntry;
+                        bitsCollected -= bitsPerEntry;
+
+                        var entry = new DebugInfoBoundsEntry();
+                        if ((mappingDataEncoded & 0x1) != 0)
+                            entry.SourceTypes |= SourceTypes.CallInstruction;
+                        if ((mappingDataEncoded & 0x2) != 0)
+                            entry.SourceTypes |= SourceTypes.StackEmpty;
+                        if (version >= 17 && (mappingDataEncoded & 0x4) != 0)
+                            entry.SourceTypes |= SourceTypes.Async;
+
+                        mappingDataEncoded >>= (int)bitsForSourceType;
+                        uint nativeOffsetDelta = (uint)(mappingDataEncoded & ((1UL << (int)bitsForNativeDelta) - 1));
+                        previousNativeOffset += nativeOffsetDelta;
+                        entry.NativeOffset = previousNativeOffset;
+
+                        mappingDataEncoded >>= (int)bitsForNativeDelta;
+                        entry.ILOffset = (uint)(mappingDataEncoded) + (uint)DebugInfoBoundsType.MaxMappingValue;
+
+                        _boundsList.Add(entry);
+                        curBoundsProcessed++;
+                    }
+                }
+            }
+            else
+            {
+                NibbleReader reader = new NibbleReader(imageReader, offset);
+                uint boundsEntryCount = reader.ReadUInt();
+
+                uint previousNativeOffset = 0;
+                for (int i = 0; i < boundsEntryCount; ++i)
+                {
+                    var entry = new DebugInfoBoundsEntry();
+                    previousNativeOffset += reader.ReadUInt();
+                    entry.NativeOffset = previousNativeOffset;
+                    entry.ILOffset = reader.ReadUInt() + (uint)DebugInfoBoundsType.MaxMappingValue;
+                    entry.SourceTypes = (SourceTypes)reader.ReadUInt();
+                    _boundsList.Add(entry);
+                }
+            }
         }
 
+        private void ParseNativeVarInfo(NativeReader imageReader, int offset)
+        {
+            // Each Varinfo has a:
+            // - native start +End offset. We can use a delta for the end offset.
+            // - Il variable number. These are usually small.
+            // - VarLoc information. This is a tagged variant.
+            // The entries aren't sorted in any particular order.
+            NibbleReader reader = new NibbleReader(imageReader, offset);
+            uint nativeVarCount = reader.ReadUInt();
+
+            int version = _runtimeFunction.ReadyToRunReader.ReadyToRunHeader.MajorVersion;
+            int implicitILAdjust = version switch
+            {
+                >= 22 => (int)ImplicitILArguments.MaxV22,
+                >= 20 => (int)ImplicitILArguments.MaxV20,
+                <  20 => (int)ImplicitILArguments.MaxV19,
+            };
+
+            for (int i = 0; i < nativeVarCount; ++i)
+            {
+                var entry = new NativeVarInfo();
+
+                if (version >= 22)
+                {
+                    entry.VariableNumber = (uint)(reader.ReadUInt() + implicitILAdjust);
+                    entry.StartOffset = reader.ReadUInt();
+
+                    if (entry.VariableNumber == unchecked((uint)ImplicitILArguments.CallReturnValue))
+                    {
+                        entry.CallReturnValueILOffset = reader.ReadUInt();
+                        entry.EndOffset = entry.StartOffset + 1;
+                    }
+                    else
+                    {
+                        entry.EndOffset = entry.StartOffset + reader.ReadUInt();
+                    }
+                }
+                else
+                {
+                    entry.StartOffset = reader.ReadUInt();
+                    entry.EndOffset = entry.StartOffset + reader.ReadUInt();
+                    entry.VariableNumber = (uint)(reader.ReadUInt() + implicitILAdjust);
+                }
+                entry.Variable = new Variable();
+                // TODO: This is probably incomplete
+                // This does not handle any implicit arguments or var args
+                if (entry.VariableNumber < this._runtimeFunction.Method.Signature.ParameterTypes.Length)
+                {
+                    entry.Variable.Type = VariableType.Parameter;
+                    entry.Variable.Index = (int)entry.VariableNumber;
+                }
+                else
+                {
+                    entry.Variable.Type = VariableType.Local;
+                    entry.Variable.Index = (int)entry.VariableNumber - this._runtimeFunction.Method.Signature.ParameterTypes.Length;
+                }
+
+                var varLoc = new VarLoc();
+                varLoc.VarLocType = (VarLocType)reader.ReadUInt();
+                switch (varLoc.VarLocType)
+                {
+                    case VarLocType.VLT_REG:
+                    case VarLocType.VLT_REG_FP:
+                    case VarLocType.VLT_REG_BYREF:
+                        varLoc.Data1 = (int)reader.ReadUInt();
+                        break;
+                    case VarLocType.VLT_STK:
+                    case VarLocType.VLT_STK_BYREF:
+                        varLoc.Data1 = (int)reader.ReadUInt();
+                        varLoc.Data2 = ReadEncodedStackOffset(reader);
+                        break;
+                    case VarLocType.VLT_REG_REG:
+                        varLoc.Data1 = (int)reader.ReadUInt();
+                        varLoc.Data2 = (int)reader.ReadUInt();
+                        break;
+                    case VarLocType.VLT_REG_STK:
+                        varLoc.Data1 = (int)reader.ReadUInt();
+                        varLoc.Data2 = (int)reader.ReadUInt();
+                        varLoc.Data3 = ReadEncodedStackOffset(reader);
+                        break;
+                    case VarLocType.VLT_STK_REG:
+                        varLoc.Data1 = ReadEncodedStackOffset(reader);
+                        varLoc.Data2 = (int)reader.ReadUInt();
+                        varLoc.Data3 = (int)reader.ReadUInt();
+                        break;
+                    case VarLocType.VLT_STK2:
+                        varLoc.Data1 = (int)reader.ReadUInt();
+                        varLoc.Data2 = ReadEncodedStackOffset(reader);
+                        break;
+                    case VarLocType.VLT_FPSTK:
+                        varLoc.Data1 = (int)reader.ReadUInt();
+                        break;
+                    case VarLocType.VLT_FIXED_VA:
+                        varLoc.Data1 = (int)reader.ReadUInt();
+                        break;
+                    default:
+                        throw new BadImageFormatException("Unexpected var loc type");
+                }
+
+                entry.VariableLocation = varLoc;
+                _variablesList.Add(entry);
+            }
+        }
+
+        private int ReadEncodedStackOffset(NibbleReader reader)
+        {
+            int offset = reader.ReadInt();
+            if (_machine == Machine.I386)
+            {
+                offset *= 4; // sizeof(DWORD)
+            }
+
+            return offset;
+        }
     }
-
 }

@@ -1,283 +1,90 @@
-using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Diagnostics.CodeAnalysis;
-using AsmResolver.IO;
-
 namespace AsmResolver.PE.DotNet.ReadyToRun
 {
     /// <summary>
-    /// Represents a sparse list of elements stored in the native file format as specified by the ReadyToRun file format.
+    /// based on <a href="https://github.com/dotnet/runtime/blob/main/src/coreclr/vm/nativeformatreader.h">NativeFormat::NativeArray</a>
     /// </summary>
-    /// <typeparam name="T">The type of elements to store in the array.</typeparam>
-    public class NativeArray<T> : Collection<T?>, ISegment
-        where T : IWritable
+    public class NativeArray
     {
-        private readonly List<Node> _roots = new();
-        private uint _entryIndexSize = 2;
-        private uint _totalSize;
+        private const int _blockSize = 16;
 
-        /// <inheritdoc />
-        public bool CanUpdateOffsets => true;
+        private NativeReader _reader;
+        private uint _baseOffset;
+        private uint _nElements;
+        private byte _entryIndexSize;
 
-        /// <inheritdoc />
-        public ulong Offset
+        public NativeArray(NativeReader reader, uint offset)
         {
-            get;
-            private set;
+            _reader = reader;
+
+            uint val = 0;
+            _baseOffset = _reader.DecodeUnsigned(offset, ref val);
+            _nElements = (val >> 2);
+            _entryIndexSize = (byte)(val & 3);
         }
 
-        /// <inheritdoc />
-        public uint Rva
+        public uint GetCount()
         {
-            get;
-            private set;
+            return _nElements;
         }
 
-        private uint Header => (uint) (Items.Count << 2) | _entryIndexSize;
-
-        /// <summary>
-        /// Reads a sparse array in the native file format from the provided input stream.
-        /// </summary>
-        /// <param name="reader">The input stream.</param>
-        /// <param name="readElement">The function to use for reading individual elements.</param>
-        /// <returns>The read array.</returns>
-        public static NativeArray<T> FromReader(BinaryStreamReader reader, Func<BinaryStreamReader, T> readElement)
+        public bool TryGetAt(uint index, ref int pOffset)
         {
-            var result = new NativeArray<T>();
+            if (index >= _nElements)
+                return false;
 
-            uint header = NativeFormat.DecodeUnsigned(ref reader);
-            int count = (int) (header >> 2);
-            result._entryIndexSize = (byte) (header & 3);
-            reader = reader.ForkAbsolute(reader.Offset);
-
-            for (int i = 0; i < count; i++)
+            uint offset;
+            if (_entryIndexSize == 0)
             {
-                result.Add(NativeFormat.TryGetArrayElement(reader, result._entryIndexSize, i, out var elementReader)
-                    ? readElement(elementReader)
-                    : default);
+                int i = (int)(_baseOffset + (index / _blockSize));
+                offset = _reader.ReadByte(ref i);
             }
-
-            return result;
-        }
-
-        private void RebuildTree()
-        {
-            _roots.Clear();
-
-            for (int i = 0; i < Items.Count; i++)
+            else if (_entryIndexSize == 1)
             {
-                var item = Items[i];
-                if (item is not null)
-                    InsertNode(i, item);
+                int i = (int)(_baseOffset + 2 * (index / _blockSize));
+                offset = _reader.ReadUInt16(ref i);
             }
-
-            // TODO: optimize for entry size.
-            _entryIndexSize = 2;
-        }
-
-        private void UpdateTreeOffsets(in RelocationParameters parameters)
-        {
-            Offset = parameters.Offset;
-            Rva = parameters.Rva;
-
-            var current = parameters;
-
-            current.Advance(NativeFormat.GetEncodedUnsignedSize(Header));
-            current.Advance((uint) _roots.Count * (1u << (int) _entryIndexSize));
-
-            foreach (var root in _roots)
+            else
             {
-                root.UpdateOffsets(current);
-                current.Advance(root.GetPhysicalSize());
+                int i = (int)(_baseOffset + 4 * (index / _blockSize));
+                offset = _reader.ReadUInt32(ref i);
             }
+            offset += _baseOffset;
 
-            _totalSize = (uint) (current.Offset - parameters.Offset);
-        }
-
-        private void InsertNode(int index, T? value)
-        {
-            int rootIndex = index / NativeFormat.ArrayBlockSize;
-            while (rootIndex >= _roots.Count)
-                _roots.Add(new Node(NativeFormat.ArrayBlockSize >> 1));
-
-            // TODO: truncate trees.
-
-            var current = _roots[rootIndex];
-
-            uint bit = NativeFormat.ArrayBlockSize >> 1;
-            while (bit > 0)
+            for (uint bit = _blockSize >> 1; bit > 0; bit >>= 1)
             {
+                uint val = 0;
+                uint offset2 = _reader.DecodeUnsigned(offset, ref val);
                 if ((index & bit) != 0)
                 {
-                    current.Right ??= new Node(current.Depth >> 1);
-                    current = current.Right;
-                }
-                else
-                {
-                    current.Left ??= new Node(current.Depth >> 1);
-                    current = current.Left;
-                }
-
-                bit >>= 1;
-            }
-
-            current.Index = (uint) index;
-            current.Value = value;
-        }
-
-        /// <inheritdoc />
-        public void UpdateOffsets(in RelocationParameters parameters)
-        {
-            RebuildTree();
-            UpdateTreeOffsets(parameters);
-        }
-
-        /// <inheritdoc />
-        public uint GetPhysicalSize() => _totalSize;
-
-        /// <inheritdoc />
-        public uint GetVirtualSize() => GetPhysicalSize();
-
-        /// <inheritdoc />
-        public void Write(BinaryStreamWriter writer)
-        {
-            uint header = Header;
-            uint headerSize = NativeFormat.GetEncodedUnsignedSize(header);
-            NativeFormat.EncodeUnsigned(writer, header);
-
-            foreach (var root in _roots)
-                WriteRootNodeHeader(writer, root, headerSize);
-
-            foreach (var root in _roots)
-                root.Write(writer);
-        }
-
-        private void WriteRootNodeHeader(BinaryStreamWriter writer, Node root, uint headerSize)
-        {
-            uint offset = (uint) (root.Offset - headerSize - Offset);
-            switch (_entryIndexSize)
-            {
-                case 0:
-                    writer.WriteByte((byte) offset);
-                    break;
-
-                case 1:
-                    writer.WriteUInt16((ushort) offset);
-                    break;
-
-                case 2:
-                    writer.WriteUInt32(offset);
-                    break;
-
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(_entryIndexSize));
-            }
-        }
-
-        private sealed class Node : SegmentBase
-        {
-            public uint Index;
-            public T? Value;
-            public Node? Left;
-            public Node? Right;
-            public readonly int Depth;
-
-            private uint _size;
-
-            public Node(int depth, uint index = 0, T? value = default)
-            {
-                Depth = depth;
-                Index = index;
-                Value = value;
-            }
-
-            public uint Header
-            {
-                get
-                {
-                    uint tag = 0;
-                    if (Left is not null)
-                        tag |= 0b01;
-                    if (Right is not null)
-                        tag |= 0b10;
-
-                    uint value;
-                    if (Right is not null)
-                        value = (uint) (Right.Offset - Offset);
-                    else if (Left is not null)
-                        value = 0;
-                    else
-                        value = Index;
-
-                    return tag | (value << 2);
-                }
-            }
-
-            [MemberNotNullWhen(true, nameof(Value))]
-            public bool IsLeaf => Left is null && Right is null;
-
-            public override void UpdateOffsets(in RelocationParameters parameters)
-            {
-                base.UpdateOffsets(in parameters);
-
-                var current = parameters;
-
-                if (Depth > 0)
-                {
-                    // TODO: optimize header for size.
-                    // current.Advance(NativeArrayView.GetEncodedUnsignedSize(Header));
-                    current.Advance(5);
-                }
-
-                if (IsLeaf)
-                {
-                    if (Value is ISegment segment)
-                        segment.UpdateOffsets(current);
-                    current.Advance(Value.GetPhysicalSize());
-                }
-                else
-                {
-                    if (Left is not null)
+                    if ((val & 2) != 0)
                     {
-                        Left.UpdateOffsets(current);
-                        current.Advance(Left.GetPhysicalSize());
+                        offset += val >> 2;
+                        continue;
                     }
-
-                    if (Right is not null)
+                }
+                else
+                {
+                    if ((val & 1) != 0)
                     {
-                        Right.UpdateOffsets(current);
-                        current.Advance(Right.GetPhysicalSize());
+                        offset = offset2;
+                        continue;
                     }
                 }
 
-                _size = (uint) (current.Offset - parameters.Offset);
+                // Not found
+                if ((val & 3) == 0)
+                {
+                    // Matching special leaf node?
+                    if ((val >> 2) == (index & (_blockSize - 1)))
+                    {
+                        offset = offset2;
+                        break;
+                    }
+                }
+                return false;
             }
-
-            public override uint GetPhysicalSize() => _size;
-
-            public override void Write(BinaryStreamWriter writer)
-            {
-                System.Diagnostics.Debug.Assert(writer.Offset == Offset);
-
-                if (Depth > 0)
-                {
-                    // TODO: optimize header for size.
-                    // NativeArrayView.EncodeUnsigned(writer, Header);
-                    writer.WriteByte(0b00001111);
-                    writer.WriteUInt32(Header);
-                }
-
-                if (IsLeaf)
-                {
-                    Value.Write(writer);
-                }
-                else
-                {
-                    Left?.Write(writer);
-                    Right?.Write(writer);
-                }
-            }
+            pOffset = (int)offset;
+            return true;
         }
     }
 }
