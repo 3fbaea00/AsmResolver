@@ -78,32 +78,6 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         public IAssemblyMetadata GetManifestAssemblyMetadata(System.Reflection.Metadata.MetadataReader manifestReader)
             => new ManifestAssemblyMetadata(_peReader, manifestReader);
 
-        public void DumpImageInformation(TextWriter writer)
-        {
-            writer.WriteLine($"MetadataSize: {_peReader.PEHeaders.MetadataSize} byte(s)");
-
-            if (_peReader.PEHeaders.PEHeader is PEHeader header)
-            {
-                writer.WriteLine($"SizeOfImage: {header.SizeOfImage} byte(s)");
-                writer.WriteLine($"ImageBase: 0x{header.ImageBase:X}");
-                writer.WriteLine($"FileAlignment: 0x{header.FileAlignment:X}");
-                writer.WriteLine($"SectionAlignment: 0x{header.SectionAlignment:X}");
-            }
-            else
-            {
-                writer.WriteLine("No PEHeader");
-            }
-
-            writer.WriteLine($"CorHeader.Flags: {_peReader.PEHeaders.CorHeader?.Flags}");
-
-            writer.WriteLine("Sections:");
-            foreach (var section in _peReader.PEHeaders.SectionHeaders)
-                writer.WriteLine($"  {section.Name} {section.VirtualAddress} - {(section.VirtualAddress + section.VirtualSize)}");
-
-            var exportTable = _peReader.GetExportTable();
-            exportTable.DumpToConsoleError();
-        }
-
         public Dictionary<string, int> GetSections()
         {
             Dictionary<string, int> sectionMap = [];

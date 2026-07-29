@@ -1,3 +1,4 @@
+using AsmResolver.PE.File;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -165,7 +166,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         /// <summary>
         /// The type of target machine
         /// </summary>
-        public Machine Machine
+        public MachineType Machine
         {
             get
             {
@@ -667,23 +668,19 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
 
             switch (_machine)
             {
-                case Machine.I386:
-                case Machine.Arm:
-                case Machine.Thumb:
-                case Machine.ArmThumb2:
-                case WasmMachine.Wasm32:
+                case MachineType.I386:
                     _pointerSize = 4;
                     break;
 
-                case Machine.Amd64:
-                case Machine.Arm64:
-                case Machine.LoongArch64:
-                case Machine.RiscV64:
+                case MachineType.Amd64:
+                case MachineType.Arm64:
+                case MachineType.LoongArch64:
+                case MachineType.RiscV64:
                     _pointerSize = 8;
                     break;
 
                 default:
-                    throw new NotImplementedException(Machine.ToString());
+                    throw new NotImplementedException();
             }
 
             _imageBase = CompositeReader.ImageBase;
@@ -801,42 +798,11 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         /// </summary>
         internal int CalculateRuntimeFunctionSize()
         {
-            if (Machine == Machine.Amd64)
+            if (Machine == MachineType.Amd64)
             {
                 return 3 * sizeof(int);
             }
             return 2 * sizeof(int);
-        }
-
-        private uint? _wasmMinFunctionTableIndex;
-
-        /// <summary>
-        /// For WASM images, returns the minimum function table index stored after the
-        /// RuntimeFunctions sentinel. Returns 0 for non-WASM images or if not available.
-        /// </summary>
-        public uint WasmMinFunctionTableIndex
-        {
-            get
-            {
-                if (_wasmMinFunctionTableIndex is not null)
-                    return _wasmMinFunctionTableIndex.Value;
-
-                if (Machine != WasmMachine.Wasm32 ||
-                    !ReadyToRunHeader.Sections.TryGetValue(ReadyToRunSectionType.RuntimeFunctions, out ReadyToRunSection rtfSection))
-                {
-                    _wasmMinFunctionTableIndex = 0;
-                    return 0;
-                }
-
-                // The sentinel (0xFFFFFFFF) and min table index are located immediately
-                // after the section data (section.Size only covers the entries).
-                int sectionOffset = CompositeReader.GetOffset(rtfSection.RelativeVirtualAddress);
-                int afterSection = sectionOffset + rtfSection.Size;
-                // Skip the sentinel (4 bytes), then read the min function table index (4 bytes)
-                int minTableOffset = afterSection + 4;
-                _wasmMinFunctionTableIndex = ImageReader.ReadUInt32(ref minTableOffset);
-                return _wasmMinFunctionTableIndex.Value;
-            }
         }
 
         /// <summary>

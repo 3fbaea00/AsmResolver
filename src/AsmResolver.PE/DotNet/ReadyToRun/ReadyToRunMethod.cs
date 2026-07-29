@@ -251,10 +251,6 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             {
                 return (int)riscv64Info.FunctionLength;
             }
-            else if (UnwindInfo is Wasm32.UnwindInfo wasmInfo)
-            {
-                return (int)wasmInfo.FunctionLength;
-            }
             else if (Method.GcInfo != null)
             {
                 return Method.GcInfo.CodeLength;
@@ -626,13 +622,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                     runtimeFunctionId = coldRuntimeFunctionId;
                 }
                 int startRva = _readyToRunReader.ImageReader.ReadInt32(ref curOffset);
-                bool isFunclet = false;                
-                if (_readyToRunReader.Machine == WasmMachine.Wasm32)
-                {
-                    // On WASM, bit 31 is the funclet flag and bits 30:0 are the virtual IP.
-                    isFunclet = (startRva & unchecked((int)0x80000000)) != 0;
-                    startRva = (int)(startRva & 0x7FFFFFFF);
-                }
+                bool isFunclet = false; 
                 int endRva = -1;
                 if (_readyToRunReader.Machine == MachineType.Amd64)
                 {
@@ -662,10 +652,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                 {
                     unwindInfo = new RiscV64.UnwindInfo(_readyToRunReader.ImageReader, unwindOffset);
                 }
-                else if (_readyToRunReader.Machine == WasmMachine.Wasm32)
-                {
-                    unwindInfo = new Wasm32.UnwindInfo(_readyToRunReader.ImageReader, unwindOffset);
-                }
+
 
                 if (i == 0 && unwindInfo != null)
                 {

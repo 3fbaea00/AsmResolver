@@ -78,8 +78,6 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                     return ((LoongArch64.Registers)regnum).ToString();
                 case MachineType.RiscV64:
                     return ((RiscV64.Registers)regnum).ToString();
-                case WasmMachine.Wasm32:
-                    return $"NYI '{regnum}'"; // WASM-TODO Implement this correctly.
                 default:
                     throw new NotImplementedException($"No implementation for machine type {machine}.");
             }

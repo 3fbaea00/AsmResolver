@@ -98,23 +98,6 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             return new PEExportTable(peReader);
         }
 
-        public void DumpToConsoleError()
-        {
-            Console.Error.WriteLine($"HasExportTable: {HasExportTable}");
-            Console.Error.WriteLine($"ExportTableHeaderLength: {ExportTableHeaderLength}");
-            Console.Error.WriteLine($"_namedExportRva: {_namedExportRva.Count} item(s)");
-            int i = 0;
-            foreach (var kvp in _namedExportRva)
-            {
-                Console.Error.WriteLine($"  '{kvp.Key}': {kvp.Value}");
-                if (i++ > 64)
-                {
-                    Console.Error.WriteLine("  ... stopped dumping named exports because there are too many.");
-                    break;
-                }
-            }
-        }
-
         public bool TryGetValue(string exportName, out int rva) => _namedExportRva.TryGetValue(exportName, out rva);
         public bool TryGetValue(int ordinal, out int rva) => _ordinalRva.TryGetValue(ordinal, out rva);
     }
