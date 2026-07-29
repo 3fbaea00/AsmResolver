@@ -1,3 +1,5 @@
+using AsmResolver.PE.File;
+using System;
 using System.Collections.Generic;
 using System.IO;
 
@@ -129,15 +131,15 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.MachO
             }
         }
 
-        private static Machine GetMachineType(uint cpuType)
+        private static MachineType GetMachineType(uint cpuType)
         {
             // https://github.com/apple-oss-distributions/xnu/blob/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/osfmk/mach/machine.h
             const uint CPU_TYPE_ARM64 = 0x0100000C;
             const uint CPU_TYPE_X86_64 = 0x01000007;
             return cpuType switch
             {
-                CPU_TYPE_ARM64 => Machine.Arm64,
-                CPU_TYPE_X86_64 => Machine.Amd64,
+                CPU_TYPE_ARM64 => MachineType.Arm64,
+                CPU_TYPE_X86_64 => MachineType.Amd64,
                 _ => throw new NotSupportedException($"Unsupported MachO CPU type: {cpuType:X8}")
             };
         }

@@ -1492,16 +1492,14 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                 {
                     switch (Machine)
                     {
-                        case Machine.I386:
-                        case Machine.ArmThumb2:
-                        case WasmMachine.Wasm32:
+                        case MachineType.I386:
                             entrySize = 4;
                             break;
 
-                        case Machine.Amd64:
-                        case Machine.Arm64:
-                        case Machine.LoongArch64:
-                        case Machine.RiscV64:
+                        case MachineType.Amd64:
+                        case MachineType.Arm64:
+                        case MachineType.LoongArch64:
+                        case MachineType.RiscV64:
                             entrySize = 8;
                             break;
 

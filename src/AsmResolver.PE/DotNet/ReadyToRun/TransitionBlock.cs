@@ -1,3 +1,4 @@
+using AsmResolver.PE.File;
 using System;
 
 namespace AsmResolver.PE.DotNet.ReadyToRun
@@ -10,28 +11,20 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         {
             switch (reader.Machine)
             {
-                case Machine.I386:
+                case MachineType.I386:
                     return X86TransitionBlock.Instance;
 
-                case Machine.Amd64:
+                case MachineType.Amd64:
                     return reader.OperatingSystem == OperatingSystem.Windows ? X64WindowsTransitionBlock.Instance : X64UnixTransitionBlock.Instance;
 
-                case Machine.Arm:
-                case Machine.Thumb:
-                case Machine.ArmThumb2:
-                    return ArmTransitionBlock.Instance;
-
-                case Machine.Arm64:
+                case MachineType.Arm64:
                     return Arm64TransitionBlock.Instance;
 
-                case Machine.LoongArch64:
+                case MachineType.LoongArch64:
                     return LoongArch64TransitionBlock.Instance;
 
-                case Machine.RiscV64:
+                case MachineType.RiscV64:
                     return RiscV64TransitionBlock.Instance;
-
-                case WasmMachine.Wasm32:
-                    return Wasm32TransitionBlock.Instance;
 
                 default:
                     throw new NotImplementedException();
@@ -96,23 +89,6 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             }
         }
 
-        private sealed class Wasm32TransitionBlock : TransitionBlock
-        {
-            public static readonly TransitionBlock Instance = new Wasm32TransitionBlock();
-
-            public override int PointerSize => 4;
-            public override int NumArgumentRegisters => 0;
-            public override int NumCalleeSavedRegisters => 0;
-            // Argument registers, callee-save registers, return address
-            public override int SizeOfTransitionBlock => 8;
-            public override int OffsetOfArgumentRegisters => SizeOfTransitionBlock;
-
-            public override int OffsetFromGCRefMapPos(int pos)
-            {
-                return OffsetOfArgumentRegisters + pos * PointerSize;
-            }
-        }
-
         private sealed class X64WindowsTransitionBlock : TransitionBlock
         {
             public static readonly TransitionBlock Instance = new X64WindowsTransitionBlock();
@@ -139,20 +115,6 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             // Argument registers, callee-saved registers, return address
             public override int SizeOfTransitionBlock => SizeOfArgumentRegisters + SizeOfCalleeSavedRegisters + PointerSize;
             public override int OffsetOfArgumentRegisters => 0;
-        }
-
-        private sealed class ArmTransitionBlock : TransitionBlock
-        {
-            public static readonly TransitionBlock Instance = new ArmTransitionBlock();
-
-            public override int PointerSize => 4;
-            // R0, R1, R2, R3
-            public override int NumArgumentRegisters => 4;
-            // R4, R5, R6, R7, R8, R9, R10, R11, R14
-            public override int NumCalleeSavedRegisters => 9;
-            // Callee-saves, argument registers
-            public override int SizeOfTransitionBlock => SizeOfCalleeSavedRegisters + SizeOfArgumentRegisters;
-            public override int OffsetOfArgumentRegisters => SizeOfCalleeSavedRegisters;
         }
 
         private sealed class Arm64TransitionBlock : TransitionBlock
@@ -199,7 +161,6 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             public override int SizeOfTransitionBlock => SizeOfCalleeSavedRegisters + SizeOfArgumentRegisters;
             public override int OffsetOfFirstGCRefMapSlot => SizeOfCalleeSavedRegisters;
             public override int OffsetOfArgumentRegisters => OffsetOfFirstGCRefMapSlot;
-        }
-        
+        }        
     }
 }

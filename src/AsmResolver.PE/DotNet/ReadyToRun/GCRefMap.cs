@@ -1,3 +1,4 @@
+using AsmResolver.PE.File;
 using System.Collections.Generic;
 using System.Diagnostics;
 
@@ -151,7 +152,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             List<GCRefMapEntry> entries = new List<GCRefMapEntry>();
             uint stackPop = GCRefMap.InvalidStackPop;
 
-            if (_reader.Machine == Machine.I386)
+            if (_reader.Machine == MachineType.I386)
             {
                 stackPop = ReadStackPop();
             }

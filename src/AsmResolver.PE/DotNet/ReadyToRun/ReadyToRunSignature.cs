@@ -1,3 +1,4 @@
+using AsmResolver.PE.DotNet.Metadata.Tables;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -613,14 +614,14 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         /// <a href="">https://github.com/dotnet/runtime/blob/main/src/coreclr/inc/cor.h</a>.
         /// </summary>
         /// <returns></returns>
-        public CorElementType ReadElementType()
+        public ElementType ReadElementType()
         {
-            return (CorElementType)(ReadByte() & 0x7F);
+            return (ElementType)(ReadByte() & 0x7F);
         }
 
-        public CorElementType PeekElementType()
+        public ElementType PeekElementType()
         {
-            return (CorElementType)(_image[_offset] & 0x7F);
+            return (ElementType)(_image[_offset] & 0x7F);
         }
 
         /// <summary>
@@ -629,46 +630,46 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         /// <param name="builder"></param>
         public TType ParseType()
         {
-            CorElementType corElemType = ReadElementType();
+            ElementType corElemType = ReadElementType();
             switch (corElemType)
             {
-                case CorElementType.ELEMENT_TYPE_VOID:
-                case CorElementType.ELEMENT_TYPE_BOOLEAN:
-                case CorElementType.ELEMENT_TYPE_CHAR:
-                case CorElementType.ELEMENT_TYPE_I1:
-                case CorElementType.ELEMENT_TYPE_U1:
-                case CorElementType.ELEMENT_TYPE_I2:
-                case CorElementType.ELEMENT_TYPE_U2:
-                case CorElementType.ELEMENT_TYPE_I4:
-                case CorElementType.ELEMENT_TYPE_I8:
-                case CorElementType.ELEMENT_TYPE_U4:
-                case CorElementType.ELEMENT_TYPE_U8:
-                case CorElementType.ELEMENT_TYPE_R4:
-                case CorElementType.ELEMENT_TYPE_R8:
-                case CorElementType.ELEMENT_TYPE_STRING:
-                case CorElementType.ELEMENT_TYPE_OBJECT:
-                case CorElementType.ELEMENT_TYPE_I:
-                case CorElementType.ELEMENT_TYPE_U:
-                case CorElementType.ELEMENT_TYPE_TYPEDBYREF:
+                case ElementType.Void:
+                case ElementType.Boolean:
+                case ElementType.Char:
+                case ElementType.I1:
+                case ElementType.U1:
+                case ElementType.I2:
+                case ElementType.U2:
+                case ElementType.I4:
+                case ElementType.I8:
+                case ElementType.U4:
+                case ElementType.U8:
+                case ElementType.R4:
+                case ElementType.R8:
+                case ElementType.String:
+                case ElementType.Object:
+                case ElementType.I:
+                case ElementType.U:
+                case ElementType.TypedByRef:
                     return _provider.GetPrimitiveType((PrimitiveTypeCode)corElemType);
 
-                case CorElementType.ELEMENT_TYPE_PTR:
+                case ElementType.Ptr:
                     return _provider.GetPointerType(ParseType());
 
-                case CorElementType.ELEMENT_TYPE_BYREF:
+                case ElementType.ByRef:
                     return _provider.GetByReferenceType(ParseType());
 
-                case CorElementType.ELEMENT_TYPE_VALUETYPE:
-                case CorElementType.ELEMENT_TYPE_CLASS:
+                case ElementType.ValueType:
+                case ElementType.Class:
                     return ParseTypeDefOrRef(corElemType);
 
-                case CorElementType.ELEMENT_TYPE_VAR:
+                case ElementType.Var:
                     {
                         uint varIndex = ReadUInt();
                         return _provider.GetGenericTypeParameter(Context, (int)varIndex);
                     }
 
-                case CorElementType.ELEMENT_TYPE_ARRAY:
+                case ElementType.Array:
                     {
                         TType elementType = ParseType();
                         uint rank = ReadUInt();
@@ -691,7 +692,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                         return _provider.GetArrayType(elementType, arrayShape);
                     }
 
-                case CorElementType.ELEMENT_TYPE_GENERICINST:
+                case ElementType.GenericInst:
                     {
                         TType genericType = ParseType();
                         uint typeArgCount = ReadUInt();
@@ -705,7 +706,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                         return _provider.GetGenericInstantiation(genericType, parsedTypes.ToImmutableArray());
                     }
 
-                case CorElementType.ELEMENT_TYPE_FNPTR:
+                case ElementType.FnPtr:
                     var sigHeader = new SignatureHeader(ReadByte());
                     int genericParamCount = 0;
                     if (sigHeader.IsGeneric)
@@ -718,7 +719,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                     int requiredParamCount = -1;
                     for (int i = 0; i < paramCount; i++)
                     {
-                        while (PeekElementType() == CorElementType.ELEMENT_TYPE_SENTINEL)
+                        while (PeekElementType() == ElementType.ELEMENT_TYPE_SENTINEL)
                         {
                             requiredParamCount = i;
                             ReadElementType(); // Skip over sentinel
@@ -731,40 +732,28 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                     MethodSignature<TType> methodSig = new MethodSignature<TType>(sigHeader, returnType, requiredParamCount, genericParamCount, paramTypes.ToImmutableArray());
                     return _provider.GetFunctionPointerType(methodSig);
 
-                case CorElementType.ELEMENT_TYPE_SZARRAY:
+                case ElementType.SzArray:
                     return _provider.GetSZArrayType(ParseType());
 
-                case CorElementType.ELEMENT_TYPE_MVAR:
+                case ElementType.MVar:
                     {
                         uint varIndex = ReadUInt();
                         return _provider.GetGenericMethodParameter(Context, (int)varIndex);
                     }
 
-                case CorElementType.ELEMENT_TYPE_CMOD_REQD:
+                case ElementType.CModReqD:
                     return _provider.GetModifiedType(ParseTypeDefOrRefOrSpec(corElemType), ParseType(), true);
 
-                case CorElementType.ELEMENT_TYPE_CMOD_OPT:
+                case ElementType.CModOpt:
                     return _provider.GetModifiedType(ParseTypeDefOrRefOrSpec(corElemType), ParseType(), false);
 
-                case CorElementType.ELEMENT_TYPE_HANDLE:
-                    throw new BadImageFormatException("handle");
-
-                case CorElementType.ELEMENT_TYPE_SENTINEL:
-                    throw new BadImageFormatException("sentinel");
-
-                case CorElementType.ELEMENT_TYPE_PINNED:
+                case ElementType.Pinned:
                     return _provider.GetPinnedType(ParseType());
 
-                case CorElementType.ELEMENT_TYPE_VAR_ZAPSIG:
-                    throw new BadImageFormatException("var_zapsig");
-
-                case CorElementType.ELEMENT_TYPE_NATIVE_VALUETYPE_ZAPSIG:
-                    throw new BadImageFormatException("native_valuetype_zapsig");
-
-                case CorElementType.ELEMENT_TYPE_CANON_ZAPSIG:
+                case ElementType.CanonZapSig:
                     return _provider.GetCanonType();
 
-                case CorElementType.ELEMENT_TYPE_MODULE_ZAPSIG:
+                case ElementType.ModuleZapSig:
                     {
                         int moduleIndex = (int)ReadUInt();
                         IAssemblyMetadata refAsmReader = _contextReader.OpenReferenceAssembly(moduleIndex);
@@ -774,13 +763,19 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                         return result;
                     }
 
+                case ElementType.Modifier:
+                case ElementType.Sentinel:
+                case ElementType.VarZapSig:
+                case ElementType.NativeValueTypeZapSig:
+                    throw new BadImageFormatException();
+
                 default:
                     throw new NotImplementedException();
             }
         }
 
 
-        private TType ParseTypeDefOrRef(CorElementType corElemType)
+        private TType ParseTypeDefOrRef(ElementType corElemType)
         {
             uint token = ReadToken();
             var handle = MetadataTokens.Handle((int)token);
@@ -795,7 +790,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             }
         }
 
-        private TType ParseTypeDefOrRefOrSpec(CorElementType corElemType)
+        private TType ParseTypeDefOrRefOrSpec(ElementType corElemType)
         {
             uint token = ReadToken();
             var handle = MetadataTokens.Handle((int)token);
@@ -1483,7 +1478,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
 
         public IAssemblyMetadata GetMetadataReaderFromModuleOverride()
         {
-            if (PeekElementType() == CorElementType.ELEMENT_TYPE_MODULE_ZAPSIG)
+            if (PeekElementType() == ElementType.ModuleZapSig)
             {
                 var currentOffset = Offset;
 

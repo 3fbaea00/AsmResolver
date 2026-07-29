@@ -1,7 +1,8 @@
 namespace AsmResolver.PE.DotNet.Metadata.Tables
 {
     /// <summary>
-    /// Provides members defining all element types that can be used to indicate the type of a blob signature or constant.
+    /// Provides members defining all element types that can be used to indicate the type of a blob signature or constant, 
+    /// including runtime-specific signatures required for ReadyToRun and Multi-core JIT recording/playback.
     /// </summary>
     public enum ElementType : byte
     {
