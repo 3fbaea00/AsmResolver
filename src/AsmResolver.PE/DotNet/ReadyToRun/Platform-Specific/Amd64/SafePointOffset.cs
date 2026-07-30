@@ -1,5 +1,6 @@
-namespace AsmResolver.PE.DotNet.ReadyToRun.Structures;
+namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64;
 
+// todo: rename
 public struct SafePointOffset
 {
     public SafePointOffset(int index, uint value)

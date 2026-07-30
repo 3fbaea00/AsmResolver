@@ -1,3 +1,4 @@
+using AsmResolver.PE.DotNet.ReadyToRun.Amd64;
 using AsmResolver.PE.File;
 using System;
 using System.Collections.Generic;
@@ -1256,11 +1257,11 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
 
             for (int i = 1; i < runtimeFunctions.Count; i++)
             {
-                if (x64UnwindInfo != null && ((x64UnwindInfo.Flags & (int)ILCompiler.Reflection.ReadyToRun.Amd64.UnwindFlags.UNW_FLAG_CHAININFO) == 0))
+                if (x64UnwindInfo != null && ((x64UnwindInfo.Flags & (int)UnwindFlags.ChainInfo) == 0))
                 {
                     Amd64.UnwindInfo x64UnwindInfoCurr = (Amd64.UnwindInfo)runtimeFunctions[i].UnwindInfo;
 
-                    if ((x64UnwindInfoCurr.Flags & (int)ILCompiler.Reflection.ReadyToRun.Amd64.UnwindFlags.UNW_FLAG_CHAININFO) == 0)
+                    if ((x64UnwindInfoCurr.Flags & (int)UnwindFlags.ChainInfo) == 0)
                     {
                         uint currPersonalityRoutineRVA = x64UnwindInfoCurr.PersonalityRoutineRVA;
                         hashPersonalityRoutines.Add(currPersonalityRoutineRVA);

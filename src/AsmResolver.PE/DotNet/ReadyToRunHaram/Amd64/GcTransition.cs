@@ -1,5 +1,4 @@
 using AsmResolver.PE.DotNet.ReadyToRun.Enumerations;
-using AsmResolver.PE.File;
 using System;
 
 namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
@@ -13,7 +12,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
 
         public GcTransition() { }
 
-        public GcTransition(int codeOffset, int slotId, bool isLive, int chunkId, GcSlotTable slotTable, MachineType machine)
+        public GcTransition(int codeOffset, int slotId, bool isLive, int chunkId, GcSlotTable slotTable, SupportedMachineType machine)
         {
             CodeOffset = codeOffset;
             SlotId = slotId;
@@ -22,7 +21,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
             SlotState = GetSlotState(slotTable, machine);
         }
 
-        public string GetSlotState(GcSlotTable slotTable, MachineType machine)
+        public string GetSlotState(GcSlotTable slotTable, SupportedMachineType machine)
         {
             GcSlotTable.GcSlot slot = slotTable.GcSlots[SlotId];
             string slotStr = "";
@@ -31,20 +30,20 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
                 Type regType;
                 switch (machine)
                 {
-                    case MachineType.Arm64:
-                        regType = typeof(RegistersArm64);
+                    case SupportedMachineType.Arm64:
+                        regType = typeof(Arm64.Register);
                         break;
 
-                    case MachineType.Amd64:
-                        regType = typeof(Register);
+                    case SupportedMachineType.Amd64:
+                        regType = typeof(Amd64.Register);
                         break;
 
-                    case MachineType.LoongArch64:
-                        regType = typeof(RegistersLoongArch64);
+                    case SupportedMachineType.LoongArch64:
+                        regType = typeof(LoongArch64.Register);
                         break;
 
-                    case MachineType.RiscV64:
-                        regType = typeof(RegistersRiscV64);
+                    case SupportedMachineType.RiscV64:
+                        regType = typeof(RiscV64.Register);
                         break;
 
                     default:

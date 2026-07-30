@@ -54,19 +54,19 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
                 switch (machine)
                 {
                     case MachineType.I386:
-                        return ((RegistersI386)registerNumber).ToString();
+                        return ((I386.Register)registerNumber).ToString();
 
                     case MachineType.Amd64:
-                        return ((Register)registerNumber).ToString();
+                        return ((Amd64.Register)registerNumber).ToString();
 
                     case MachineType.Arm64:
-                        return ((RegistersArm64)registerNumber).ToString();
+                        return ((Arm64.Register)registerNumber).ToString();
 
                     case MachineType.LoongArch64:
-                        return ((RegistersLoongArch64)registerNumber).ToString();
+                        return ((LoongArch64.Register)registerNumber).ToString();
 
                     case MachineType.RiscV64:
-                        return ((RegistersRiscV64)registerNumber).ToString();
+                        return ((RiscV64.Register)registerNumber).ToString();
 
                     default:
                         throw new NotImplementedException(machine.ToString());
@@ -80,7 +80,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
         public uint NumUntracked { get; set; }
         public uint NumSlots { get; set; }
 
-        private MachineType _machine;
+        private SupportedMachineType _machine;
 
         public uint NumTracked
         {
@@ -97,7 +97,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
         /// <summary>
         /// based on <a href="https://github.com/dotnet/runtime/blob/main/src/coreclr/vm/gcinfodecoder.cpp">GcSlotDecoder::DecodeSlotTable</a>
         /// </summary>
-        public GcSlotTable(NativeReader imageReader, MachineType machine, GcInfoTypes gcInfoTypes, ref int bitOffset)
+        public GcSlotTable(NativeReader imageReader, SupportedMachineType machine, GcInfoTypes gcInfoTypes, ref int bitOffset)
         {
             _machine = machine;
 
@@ -150,7 +150,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
             }
         }
 
-        private void DecodeStackSlots(NativeReader imageReader, MachineType machine, GcInfoTypes gcInfoTypes, uint nSlots, bool isUntracked, ref int bitOffset)
+        private void DecodeStackSlots(NativeReader imageReader, SupportedMachineType machine, GcInfoTypes gcInfoTypes, uint nSlots, bool isUntracked, ref int bitOffset)
         {
             // We have stack slots left and more room to predecode
             GcStackSlotBase spBase = (GcStackSlotBase)imageReader.ReadBits(2, ref bitOffset);

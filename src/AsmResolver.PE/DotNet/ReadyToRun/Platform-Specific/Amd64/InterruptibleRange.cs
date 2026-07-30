@@ -1,8 +1,9 @@
-namespace AsmResolver.PE.DotNet.ReadyToRun.Structures;
+namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64;
 
-public struct InterruptibleRangeAmd64
+// todo: rename
+public struct InterruptibleRange
 {
-    public InterruptibleRangeAmd64(uint index, uint start, uint stop)
+    public InterruptibleRange(uint index, uint start, uint stop)
     {
         Index = index;
         StartOffset = start;

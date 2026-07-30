@@ -1,57 +1,25 @@
-using AsmResolver.PE.DotNet.ReadyToRun.Enumerations;
 using System;
 using System.Collections.Generic;
 
 namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
 {
     /// <summary>
-    /// based on <a href="https://github.com/dotnet/runtime/blob/main/src/coreclr/inc/win64unwind.h">src\inc\win64unwind.h</a> _UNWIND_OP_CODES
-    /// </summary>
-    public enum UnwindOpCodes
-    {
-        UWOP_PUSH_NONVOL,
-        UWOP_ALLOC_LARGE,
-        UWOP_ALLOC_SMALL,
-        UWOP_SET_FPREG,
-        UWOP_SAVE_NONVOL,
-        UWOP_SAVE_NONVOL_FAR,
-        UWOP_EPILOG,
-        UWOP_SPARE_CODE,
-        UWOP_SAVE_XMM128,
-        UWOP_SAVE_XMM128_FAR,
-        UWOP_PUSH_MACHFRAME,
-        UWOP_SET_FPREG_LARGE,
-    }
-
-    /// <summary>
-    /// based on <a href="https://github.com/dotnet/runtime/blob/main/src/coreclr/inc/win64unwind.h">src\inc\win64unwind.h</a> _UNWIND_OP_CODES
-    /// </summary>
-    public enum UnwindFlags
-    {
-        UNW_FLAG_NHANDLER,
-        UNW_FLAG_EHANDLER,
-        UNW_FLAG_UHANDLER,
-        UNW_FLAG_CHAININFO,
-    }
-
-    /// <summary>
     /// based on <a href="https://github.com/dotnet/runtime/blob/main/src/coreclr/inc/win64unwind.h">src\inc\win64unwind.h</a> _UNWIND_CODE
     /// </summary>
     public class UnwindCode
     {
-        public byte CodeOffset { get; set; }
-        public UnwindOpCodes UnwindOp { get; set; } //4 bits
+        public byte CodeOffset;
+        public UnwindOpCodes UnwindOp; //4 bits
 
-        public byte OpInfo { get; set; } //4 bits
-        public string OpInfoStr { get; set; } //4 bits
+        public byte OpInfo; //4 bits
 
-        public byte OffsetLow { get; set; }
-        public byte OffsetHigh { get; set; } //4 bits
+        public byte OffsetLow;
+        public byte OffsetHigh; //4 bits
 
-        public int FrameOffset { get; set; }
-        public int NextFrameOffset { get; set; }
+        public int FrameOffset;
+        public int NextFrameOffset;
 
-        public bool IsOpInfo { get; set; }
+        public bool IsOpInfo;
 
         public UnwindCode() { }
 
@@ -72,19 +40,13 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
 
             switch (UnwindOp)
             {
-                case UnwindOpCodes.UWOP_PUSH_NONVOL:
-                    OpInfoStr = $"{(Register)OpInfo}({OpInfo})";
-                    break;
-                case UnwindOpCodes.UWOP_ALLOC_LARGE:
-                    OpInfoStr = $"{OpInfo} - ";
+                case UnwindOpCodes.AllocateLarge:
                     if (OpInfo == 0)
                     {
-                        OpInfoStr += "Scaled small";
                         NextFrameOffset = 8 * imageReader.ReadUInt16(ref offset);
                     }
                     else if (OpInfo == 1)
                     {
-                        OpInfoStr += "Unscaled large";
                         uint nextOffset = imageReader.ReadUInt16(ref offset);
                         NextFrameOffset = (int)((uint)(imageReader.ReadUInt16(ref offset) << 16) | nextOffset);
                     }
@@ -93,16 +55,11 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
                         throw new BadImageFormatException();
                     }
                     break;
-                case UnwindOpCodes.UWOP_ALLOC_SMALL:
+                case UnwindOpCodes.AllocateSmall:
                     int opInfo = OpInfo * 8 + 8;
-                    OpInfoStr = $"{opInfo}";
                     break;
-                case UnwindOpCodes.UWOP_SET_FPREG:
-                    OpInfoStr = $"Unused({OpInfo})";
-                    break;
-                case UnwindOpCodes.UWOP_SET_FPREG_LARGE:
+                case UnwindOpCodes.SetFramePointerRegisterLarge:
                 {
-                    OpInfoStr = $"Unused({OpInfo})";
                     uint nextOffset = imageReader.ReadUInt16(ref offset);
                     nextOffset = ((uint)(imageReader.ReadUInt16(ref offset) << 16) | nextOffset);
                     NextFrameOffset = (int)nextOffset * 16;
@@ -112,34 +69,28 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
                     }
                 }
                 break;
-                case UnwindOpCodes.UWOP_SAVE_NONVOL:
+                case UnwindOpCodes.SaveNonVolatile:
                 {
-                    OpInfoStr = $"{(Register)OpInfo}({OpInfo})";
                     NextFrameOffset = imageReader.ReadUInt16(ref offset) * 8;
                 }
                 break;
-                case UnwindOpCodes.UWOP_SAVE_NONVOL_FAR:
+                case UnwindOpCodes.SaveNonVolatileFar:
                 {
-                    OpInfoStr = $"{(Register)OpInfo}({OpInfo})";
                     uint nextOffset = imageReader.ReadUInt16(ref offset);
                     NextFrameOffset = (int)((uint)(imageReader.ReadUInt16(ref offset) << 16) | nextOffset);
                 }
                 break;
-                case UnwindOpCodes.UWOP_SAVE_XMM128:
+                case UnwindOpCodes.SaveXmm128:
                 {
-                    OpInfoStr = $"XMM{OpInfo}({OpInfo})";
                     NextFrameOffset = (int)imageReader.ReadUInt16(ref offset) * 16;
                 }
                 break;
-                case UnwindOpCodes.UWOP_SAVE_XMM128_FAR:
+                case UnwindOpCodes.SaveXmm128Far:
                 {
-                    OpInfoStr = $"XMM{OpInfo}({OpInfo})";
                     uint nextOffset = imageReader.ReadUInt16(ref offset);
                     NextFrameOffset = (int)((uint)(imageReader.ReadUInt16(ref offset) << 16) | nextOffset);
                 }
                 break;
-                default:
-                    throw new NotImplementedException(UnwindOp.ToString());
             }
 
             NextFrameOffset = frameOffset;
@@ -154,15 +105,15 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
         private const int _sizeofUnwindCode = 2;
         private const int _offsetofUnwindCode = 4;
 
-        public byte Version { get; set; } //3 bits
-        public byte Flags { get; set; } //5 bits
-        public byte SizeOfProlog { get; set; }
-        public byte CountOfUnwindCodes { get; set; }
-        public Register FrameRegister { get; set; } //4 bits
-        public byte FrameOffset { get; set; } //4 bits
-        public Dictionary<int, int> CodeOffsetToUnwindCodeIndex { get; set; }
-        public List<UnwindCode> UnwindCodes { get; set; }
-        public uint PersonalityRoutineRVA { get; set; }
+        public byte Version; //3 bits
+        public byte Flags; //5 bits
+        public byte SizeOfProlog;
+        public byte CountOfUnwindCodes;
+        public Register FrameRegister; //4 bits
+        public byte FrameOffset; //4 bits
+        public Dictionary<int, int> CodeOffsetToUnwindCodeIndex;
+        public List<UnwindCode> UnwindCodes;
+        public uint PersonalityRoutineRVA;
 
         public UnwindInfo() { }
 

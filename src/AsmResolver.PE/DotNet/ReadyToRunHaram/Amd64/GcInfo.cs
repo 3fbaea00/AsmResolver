@@ -1,5 +1,4 @@
 using AsmResolver.PE.DotNet.ReadyToRun.Enumerations;
-using AsmResolver.PE.DotNet.ReadyToRun.Structures;
 using AsmResolver.PE.File;
 using System.Collections.Generic;
 
@@ -7,11 +6,6 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
 {
     public class GcInfo : BaseGcInfo
     {
-        private const int MIN_GCINFO_VERSION_WITH_RETURN_KIND = 2;
-        private const int MAX_GCINFO_VERSION_WITH_RETURN_KIND = 3;
-        private const int MIN_GCINFO_VERSION_WITH_REV_PINVOKE_FRAME = 2;
-        private const int MIN_GCINFO_VERSION_WITH_NORMALIZED_CODE_OFFSETS = 3;
-
         private bool _slimHeader;
         private bool _hasSecurityObject;
         private bool _hasGSCookie;
@@ -22,38 +16,38 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
         private bool _hasReversePInvokeFrame;
         private bool _wantsReportOnlyLeaf;
 
-        private MachineType _machine;
+        private SupportedMachineType _machine;
         private GcInfoTypes _gcInfoTypes;
 
-        public int Version { get; set; }
-        public ReturnKinds ReturnKind { get; set; }
-        public uint ValidRangeStart { get; set; }
-        public uint ValidRangeEnd { get; set; }
-        public int SecurityObjectStackSlot { get; set; }
-        public int GSCookieStackSlot { get; set; }
-        public int PSPSymStackSlot { get; set; }
-        public int GenericsInstContextStackSlot { get; set; }
-        public uint StackBaseRegister { get; set; }
-        public uint SizeOfEditAndContinuePreservedArea { get; set; }
-        public int ReversePInvokeFrameStackSlot { get; set; }
-        public uint SizeOfStackOutgoingAndScratchArea { get; set; }
-        public uint NumSafePoints { get; set; }
-        public uint NumInterruptibleRanges { get; set; }
-        public List<SafePointOffset> SafePointOffsets { get; set; }
-        public List<InterruptibleRangeAmd64> InterruptibleRanges { get; set; }
-        public GcSlotTable SlotTable { get; set; }
+        public GcInfoVersion Version;
+        public ReturnKinds ReturnKind;
+        public uint ValidRangeStart;
+        public uint ValidRangeEnd;
+        public int SecurityObjectStackSlot;
+        public int GSCookieStackSlot;
+        public int PSPSymStackSlot;
+        public int GenericsInstContextStackSlot;
+        public uint StackBaseRegister;
+        public uint SizeOfEditAndContinuePreservedArea;
+        public int ReversePInvokeFrameStackSlot;
+        public uint SizeOfStackOutgoingAndScratchArea;
+        public uint NumSafePoints;
+        public uint NumInterruptibleRanges;
+        public List<SafePointOffset> SafePointOffsets;
+        public List<InterruptibleRange> InterruptibleRanges;
+        public GcSlotTable SlotTable;
 
         public GcInfo() { }
 
         /// <summary>
         /// based on <a href="https://github.com/dotnet/runtime/blob/main/src/coreclr/vm/gcinfodecoder.cpp">GcInfoDecoder::GcInfoDecoder</a>
         /// </summary>
-        public GcInfo(NativeReader imageReader, int offset, MachineType machine, int version)
+        // todo: enum for version with extensions like IsReturnKindAvailable
+        public GcInfo(NativeReader imageReader, int offset, SupportedMachineType machine, GcInfoVersion version)
         {
             Offset = offset;
             Version = version;
-            bool denormalizeCodeOffsets = Version > MIN_GCINFO_VERSION_WITH_NORMALIZED_CODE_OFFSETS;
-            _gcInfoTypes = new GcInfoTypes(machine, denormalizeCodeOffsets);
+            _gcInfoTypes = new GcInfoTypes(machine, Version.IsCodeOffsetsNormalized());
             _machine = machine;
 
             SecurityObjectStackSlot = -1;
@@ -69,7 +63,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
 
             ParseHeaderFlags(imageReader, ref bitOffset);
 
-            if (Version >= MIN_GCINFO_VERSION_WITH_RETURN_KIND && Version <= MAX_GCINFO_VERSION_WITH_RETURN_KIND) // IsReturnKindAvailable
+            if (Version.HasReturnKind())
             {
                 int returnKindBits = (_slimHeader) ? _gcInfoTypes.SIZE_OF_RETURN_KIND_SLIM : _gcInfoTypes.SIZE_OF_RETURN_KIND_FAT;
                 ReturnKind = (ReturnKinds)imageReader.ReadBits(returnKindBits, ref bitOffset);
@@ -178,7 +172,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
             }
             else
             {
-                int numFlagBits = (int)((Version == 1) ? GcInfoHeaderFlags.FlagsBitSizeVersion1 : GcInfoHeaderFlags.FlagsBitSize);
+                int numFlagBits = (int)Version.GetHeaderFlagsBits();
                 headerFlags = (GcInfoHeaderFlags)imageReader.ReadBits(numFlagBits, ref bitOffset);
             }
 
@@ -188,7 +182,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
             _hasGenericsInstContext = (headerFlags & GcInfoHeaderFlags.HasGenericsInstContextMask) != GcInfoHeaderFlags.HasGenericsInstContextNone;
             _hasStackBaseRegister = (headerFlags & GcInfoHeaderFlags.HasStackBaseRegister) != 0;
             _hasSizeOfEditAndContinuePreservedArea = (headerFlags & GcInfoHeaderFlags.HasEditAndContinuesPreservedSlots) != 0;
-            if (Version >= MIN_GCINFO_VERSION_WITH_REV_PINVOKE_FRAME) // IsReversePInvokeFrameAvailable
+            if (Version.MayHaveReversePInvokeFrame())
             {
                 _hasReversePInvokeFrame = (headerFlags & GcInfoHeaderFlags.ReversePInvokeFrame) != 0;
             }
@@ -210,9 +204,9 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
         /// <summary>
         /// based on beginning of <a href="https://github.com/dotnet/runtime/blob/main/src/coreclr/vm/gcinfodecoder.cpp">GcInfoDecoder::EnumerateLiveSlots</a>
         /// </summary>
-        private List<InterruptibleRangeAmd64> EnumerateInterruptibleRanges(NativeReader imageReader, int interruptibleRangeDelta1EncBase, int interruptibleRangeDelta2EncBase, ref int bitOffset)
+        private List<InterruptibleRange> EnumerateInterruptibleRanges(NativeReader imageReader, int interruptibleRangeDelta1EncBase, int interruptibleRangeDelta2EncBase, ref int bitOffset)
         {
-            List<InterruptibleRangeAmd64> ranges = new List<InterruptibleRangeAmd64>();
+            List<InterruptibleRange> ranges = new List<InterruptibleRange>();
             uint normLastinterruptibleRangeStopOffset = 0;
 
             for (uint i = 0; i < NumInterruptibleRanges; i++)
@@ -225,7 +219,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
 
                 uint rangeStartOffset = _gcInfoTypes.DenormalizeCodeOffset(normRangeStartOffset);
                 uint rangeStopOffset = _gcInfoTypes.DenormalizeCodeOffset(normRangeStopOffset);
-                ranges.Add(new InterruptibleRangeAmd64(i, rangeStartOffset, rangeStopOffset));
+                ranges.Add(new InterruptibleRange(i, rangeStartOffset, rangeStopOffset));
 
                 normLastinterruptibleRangeStopOffset = normRangeStopOffset;
             }
@@ -348,7 +342,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
             }
             else
             {
-                foreach (InterruptibleRangeAmd64 range in InterruptibleRanges)
+                foreach (InterruptibleRange range in InterruptibleRanges)
                 {
                     uint normStart = _gcInfoTypes.NormalizeCodeOffset(range.StartOffset);
                     uint normStop = _gcInfoTypes.NormalizeCodeOffset(range.StopOffset);
@@ -505,10 +499,10 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
         {
             Dictionary<int, List<BaseGcTransition>> updatedTransitions = new Dictionary<int, List<BaseGcTransition>>();
             int cumInterruptibleLength = 0; // the sum of the lengths of all preceding interruptible ranges
-            using (IEnumerator<InterruptibleRangeAmd64> interruptibleRangesIter = InterruptibleRanges.GetEnumerator())
+            using (IEnumerator<InterruptibleRange> interruptibleRangesIter = InterruptibleRanges.GetEnumerator())
             {
                 interruptibleRangesIter.MoveNext();
-                InterruptibleRangeAmd64 currentRange = interruptibleRangesIter.Current;
+                InterruptibleRange currentRange = interruptibleRangesIter.Current;
                 int currentRangeLength = (int)(currentRange.StopOffset - currentRange.StartOffset);
                 foreach (GcTransition transition in transitions)
                 {
