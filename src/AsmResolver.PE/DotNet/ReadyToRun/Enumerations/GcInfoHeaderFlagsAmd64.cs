@@ -16,7 +16,7 @@ public enum GcInfoHeaderFlags
     WantsReportOnlyLeaf               = 0x080,
     HasTailCalls                      = 0x080, // for Arm64
     HasEditAndContinuesPreservedSlots = 0x100,
-    ReversePInvokeFrame = 0x200,
+    ReversePInvokeFrame               = 0x200,
 
     FlagsBitSizeVersion1 = 9,
     FlagsBitSize = 10,

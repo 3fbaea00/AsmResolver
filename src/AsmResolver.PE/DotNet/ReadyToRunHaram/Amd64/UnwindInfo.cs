@@ -73,7 +73,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
             switch (UnwindOp)
             {
                 case UnwindOpCodes.UWOP_PUSH_NONVOL:
-                    OpInfoStr = $"{(RegistersAmd64)OpInfo}({OpInfo})";
+                    OpInfoStr = $"{(Register)OpInfo}({OpInfo})";
                     break;
                 case UnwindOpCodes.UWOP_ALLOC_LARGE:
                     OpInfoStr = $"{OpInfo} - ";
@@ -114,13 +114,13 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
                 break;
                 case UnwindOpCodes.UWOP_SAVE_NONVOL:
                 {
-                    OpInfoStr = $"{(RegistersAmd64)OpInfo}({OpInfo})";
+                    OpInfoStr = $"{(Register)OpInfo}({OpInfo})";
                     NextFrameOffset = imageReader.ReadUInt16(ref offset) * 8;
                 }
                 break;
                 case UnwindOpCodes.UWOP_SAVE_NONVOL_FAR:
                 {
-                    OpInfoStr = $"{(RegistersAmd64)OpInfo}({OpInfo})";
+                    OpInfoStr = $"{(Register)OpInfo}({OpInfo})";
                     uint nextOffset = imageReader.ReadUInt16(ref offset);
                     NextFrameOffset = (int)((uint)(imageReader.ReadUInt16(ref offset) << 16) | nextOffset);
                 }
@@ -158,7 +158,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
         public byte Flags { get; set; } //5 bits
         public byte SizeOfProlog { get; set; }
         public byte CountOfUnwindCodes { get; set; }
-        public RegistersAmd64 FrameRegister { get; set; } //4 bits
+        public Register FrameRegister { get; set; } //4 bits
         public byte FrameOffset { get; set; } //4 bits
         public Dictionary<int, int> CodeOffsetToUnwindCodeIndex { get; set; }
         public List<UnwindCode> UnwindCodes { get; set; }
@@ -177,7 +177,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
             SizeOfProlog = imageReader.ReadByte(ref offset);
             CountOfUnwindCodes = imageReader.ReadByte(ref offset);
             byte frameRegisterAndOffset = imageReader.ReadByte(ref offset);
-            FrameRegister = (RegistersAmd64)(frameRegisterAndOffset & 15);
+            FrameRegister = (Register)(frameRegisterAndOffset & 15);
             FrameOffset = (byte)(frameRegisterAndOffset >> 4);
 
             UnwindCodes = new List<UnwindCode>(CountOfUnwindCodes);

@@ -36,7 +36,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
                         break;
 
                     case MachineType.Amd64:
-                        regType = typeof(RegistersAmd64);
+                        regType = typeof(Register);
                         break;
 
                     case MachineType.LoongArch64:

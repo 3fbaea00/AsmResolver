@@ -57,7 +57,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.Amd64
                         return ((RegistersI386)registerNumber).ToString();
 
                     case MachineType.Amd64:
-                        return ((RegistersAmd64)registerNumber).ToString();
+                        return ((Register)registerNumber).ToString();
 
                     case MachineType.Arm64:
                         return ((RegistersArm64)registerNumber).ToString();
