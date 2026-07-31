@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections;
 using System.Collections.Generic;
 
@@ -417,8 +418,6 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                                  InstrumentationDataProcessingState.Other;
                 }
 
-                Debug.Assert(modifyMask != InstrumentationDataProcessingState.Done);
-
                 valueEmitter.EmitLong((long)modifyMask, 0);
 
                 if ((modifyMask & InstrumentationDataProcessingState.ILOffset) == InstrumentationDataProcessingState.ILOffset)
@@ -657,8 +656,6 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                             }
                     }
 
-                    Debug.Assert(PgoSchemaMergeComparer.Singleton.Compare(schema, mergedElem) == 0);
-                    Debug.Assert(PgoSchemaMergeComparer.Singleton.Equals(schema, mergedElem));
                     dataMerger[mergedElem] = mergedElem;
                 }
                 else

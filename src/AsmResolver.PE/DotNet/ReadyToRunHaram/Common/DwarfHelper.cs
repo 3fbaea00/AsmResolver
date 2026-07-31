@@ -1,9 +1,6 @@
 using System;
 using System.Numerics;
-
-#if !NETSTANDARD2_0
 using System.Buffers;
-#endif
 
 namespace AsmResolver.PE.DotNet.ReadyToRun
 {
