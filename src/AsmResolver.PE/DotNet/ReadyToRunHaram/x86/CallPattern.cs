@@ -4,7 +4,6 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.x86
 {
     class CallPattern
     {
-
         /// <summary>
         /// based on <a href="https://github.com/dotnet/runtime/blob/main/src/coreclr/inc/gcdecoder.cpp">src\inc\gcdecoder.cpp</a> decodeCallPattern
         /// </summary>

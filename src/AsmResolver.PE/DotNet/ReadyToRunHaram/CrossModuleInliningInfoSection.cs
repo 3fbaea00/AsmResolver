@@ -1,3 +1,4 @@
+using AsmResolver.PE.DotNet.ReadyToRun.Enumerations;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -12,21 +13,6 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
     /// </summary>
     public class CrossModuleInliningInfoSection
     {
-        public enum InlineeReferenceKind
-        {
-            Local,
-            CrossModule,
-        }
-
-        private enum CrossModuleInlineFlags : uint
-        {
-            CrossModuleInlinee = 0x1,
-            HasCrossModuleInliners = 0x2,
-            CrossModuleInlinerIndexShift = 2,
-            InlinerRidHasModule = 0x1,
-            InlinerRidShift = 1,
-        }
-
         /// <summary>
         /// Identifies a method in the inlining info section.
         /// For cross-module methods, Index is an ILBody import section index.
@@ -52,9 +38,9 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         public readonly struct InliningEntry
         {
             public MethodRef Inlinee { get; }
-            public IReadOnlyList<MethodRef> Inliners { get; }
+            public IList<MethodRef> Inliners { get; }
 
-            public InliningEntry(MethodRef inlinee, IReadOnlyList<MethodRef> inliners)
+            public InliningEntry(MethodRef inlinee, IList<MethodRef> inliners)
             {
                 Inlinee = inlinee;
                 Inliners = inliners;
@@ -71,7 +57,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             _r2r = reader;
             _startOffset = offset;
             _endOffset = endOffset;
-            _multiModuleFormat = (reader.ReadyToRunHeader.Flags & (uint)ReadyToRunFlags.READYTORUN_FLAG_MultiModuleVersionBubble) != 0;
+            _multiModuleFormat = (reader.ReadyToRunHeader.Flags & (uint)ReadyToRunFlags.MultiModuleVersionBubble) != 0;
         }
 
         /// <summary>
@@ -206,7 +192,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                     string sig = entry.Signature.ToString(new SignatureFormattingOptions());
                     int parenIdx = sig.LastIndexOf(" (", StringComparison.Ordinal);
 
-                    return parenIdx >= 0 ? sig[..parenIdx] : sig;
+                    return parenIdx >= 0 ? sig.Substring(0, parenIdx) : sig;
                 }
             }
 

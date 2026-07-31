@@ -1,4 +1,5 @@
 using System;
+using System.Reflection.Metadata;
 
 namespace AsmResolver.PE.DotNet.ReadyToRun
 {

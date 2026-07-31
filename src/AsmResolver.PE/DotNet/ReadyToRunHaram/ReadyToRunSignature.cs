@@ -1,4 +1,5 @@
 using AsmResolver.PE.DotNet.Metadata.Tables;
+using AsmResolver.PE.DotNet.ReadyToRun.Enumerations;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -811,7 +812,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         {
             uint methodFlags = ReadUInt();
 
-            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_UpdateContext) != 0)
+            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.UpdateContext) != 0)
             {
                 int moduleIndex = (int)ReadUInt();
                 IAssemblyMetadata refAsmReader = _contextReader.OpenReferenceAssembly(moduleIndex);
@@ -831,21 +832,21 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         private TMethod ParseMethodWithMethodFlags(uint methodFlags)
         {
             TType owningTypeOverride = default(TType);
-            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_OwnerType) != 0)
+            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.OwnerType) != 0)
             {
                 owningTypeOverride = ParseType();
-                methodFlags &= ~(uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_OwnerType;
+                methodFlags &= ~(uint)ReadyToRunMethodSigFlags.OwnerType;
             }
 
-            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_SlotInsteadOfToken) != 0)
+            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.SlotInsteadOfToken) != 0)
             {
                 throw new NotImplementedException();
             }
 
             TMethod result;
-            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_MemberRefToken) != 0)
+            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.MemberRefToken) != 0)
             {
-                methodFlags &= ~(uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_MemberRefToken;
+                methodFlags &= ~(uint)ReadyToRunMethodSigFlags.MemberRefToken;
                 result = ParseMethodRefToken(owningTypeOverride: owningTypeOverride);
             }
             else
@@ -853,9 +854,9 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                 result = ParseMethodDefToken(owningTypeOverride: owningTypeOverride);
             }
 
-            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_MethodInstantiation) != 0)
+            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.MethodInstantiation) != 0)
             {
-                methodFlags &= ~(uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_MethodInstantiation;
+                methodFlags &= ~(uint)ReadyToRunMethodSigFlags.MethodInstantiation;
                 uint typeArgCount = ReadUInt();
                 TType[] instantiationArgs = new TType[typeArgCount];
                 for (int typeArgIndex = 0; typeArgIndex < typeArgCount; typeArgIndex++)
@@ -865,9 +866,9 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                 result = _provider.GetInstantiatedMethod(result, instantiationArgs.ToImmutableArray());
             }
 
-            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_Constrained) != 0)
+            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.Constrained) != 0)
             {
-                methodFlags &= ~(uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_Constrained;
+                methodFlags &= ~(uint)ReadyToRunMethodSigFlags.Constrained;
                 result = _provider.GetConstrainedMethod(result, ParseType());
             }
 
@@ -998,15 +999,15 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             public string GetMethodWithFlags(ReadyToRunMethodSigFlags flags, string method)
             {
                 StringBuilder builder = new StringBuilder();
-                if ((flags & ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_UnboxingStub) != 0)
+                if ((flags & ReadyToRunMethodSigFlags.UnboxingStub) != 0)
                 {
                     builder.Append("[UNBOX] ");
                 }
-                if ((flags & ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_InstantiatingStub) != 0)
+                if ((flags & ReadyToRunMethodSigFlags.InstantiatingStub) != 0)
                 {
                     builder.Append("[INST] ");
                 }
-                if ((flags & ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_AsyncVariant) != 0)
+                if ((flags & ReadyToRunMethodSigFlags.AsyncVariant) != 0)
                 {
                     builder.Append("[ASYNC] ");
                 }
@@ -1509,14 +1510,14 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             int actualSize = (int)ReadUInt();
             builder.Append($" Size {actualSize}");
 
-            if (layoutFlags.HasFlag(ReadyToRunTypeLayoutFlags.READYTORUN_LAYOUT_HFA))
+            if (layoutFlags.HasFlag(ReadyToRunTypeLayoutFlags.HFA))
             {
                 builder.Append($" HFAType {ReadUInt()}");
             }
 
-            if (layoutFlags.HasFlag(ReadyToRunTypeLayoutFlags.READYTORUN_LAYOUT_Alignment))
+            if (layoutFlags.HasFlag(ReadyToRunTypeLayoutFlags.ManagedAlignment))
             {
-                if (!layoutFlags.HasFlag(ReadyToRunTypeLayoutFlags.READYTORUN_LAYOUT_Alignment_Native))
+                if (!layoutFlags.HasFlag(ReadyToRunTypeLayoutFlags.NativeAlignment))
                 {
                     builder.Append($" Align {ReadUInt()}");
                 }
@@ -1526,9 +1527,9 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                 }
             }
 
-            if (layoutFlags.HasFlag(ReadyToRunTypeLayoutFlags.READYTORUN_LAYOUT_GCLayout))
+            if (layoutFlags.HasFlag(ReadyToRunTypeLayoutFlags.GCLayout))
             {
-                if (!layoutFlags.HasFlag(ReadyToRunTypeLayoutFlags.READYTORUN_LAYOUT_GCLayout_Empty))
+                if (!layoutFlags.HasFlag(ReadyToRunTypeLayoutFlags.GCLayoutNoGCPointers))
                 {
                     int cbGCRefMap = (actualSize / _contextReader.TargetPointerSize + 7) / 8;
                     builder.Append(" GCLayout 0x");
@@ -1587,7 +1588,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         {
             uint flags = ReadUIntAndEmitInlineSignatureBinary(builder);
             string owningTypeOverride = null;
-            if ((flags & (uint)ReadyToRunFieldSigFlags.READYTORUN_FIELD_SIG_OwnerType) != 0)
+            if ((flags & (uint)ReadyToRunFieldSigFlags.OwnerType) != 0)
             {
                 StringBuilder owningTypeBuilder = new StringBuilder();
                 ParseType(owningTypeBuilder);
@@ -1595,7 +1596,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             }
             StringBuilder signaturePrefixBuilder = new StringBuilder();
             uint fieldToken;
-            if ((flags & (uint)ReadyToRunFieldSigFlags.READYTORUN_FIELD_SIG_MemberRefToken) != 0)
+            if ((flags & (uint)ReadyToRunFieldSigFlags.MemberRefToken) != 0)
             {
                 fieldToken = ReadUIntAndEmitInlineSignatureBinary(signaturePrefixBuilder) | (uint)TableIndex.MemberRef;
             }

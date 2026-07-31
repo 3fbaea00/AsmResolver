@@ -110,7 +110,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             return elementType + " pinned";
         }
 
-        public virtual string GetGenericInstantiation(string genericType, ImmutableArray<string> typeArguments)
+        public virtual string GetGenericInstantiation(string genericType, string[] typeArguments)
         {
             return genericType + "<" + String.Join(",", typeArguments) + ">";
         }
@@ -157,7 +157,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
 
         public virtual string GetFunctionPointerType(MethodSignature<string> signature)
         {
-            ImmutableArray<string> parameterTypes = signature.ParameterTypes;
+            string[] parameterTypes = signature.ParameterTypes;
 
             int requiredParameterCount = signature.RequiredParameterCount;
 

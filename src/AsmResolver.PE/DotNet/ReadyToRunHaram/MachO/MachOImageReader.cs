@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace AsmResolver.PE.DotNet.ReadyToRun.MachO
 {
@@ -32,8 +33,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.MachO
             Machine = GetMachineType(_header.CpuType);
         }
 
-        public ImmutableArray<byte> GetEntireImage()
-            => ImmutableCollectionsMarshal.AsImmutableArray(_image);
+        public byte[] GetEntireImage() => _image;
 
         public int GetOffset(int rva)
         {

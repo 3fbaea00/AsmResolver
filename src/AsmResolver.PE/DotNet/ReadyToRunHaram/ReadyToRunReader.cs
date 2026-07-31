@@ -1,4 +1,5 @@
 using AsmResolver.PE.DotNet.ReadyToRun.Amd64;
+using AsmResolver.PE.DotNet.ReadyToRun.Enumerations;
 using AsmResolver.PE.File;
 using System;
 using System.Collections.Generic;
@@ -936,7 +937,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             int startOffset = decoder.Offset;
             uint methodFlags = decoder.ReadUInt();
 
-            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_UpdateContext) != 0)
+            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.UpdateContext) != 0)
             {
                 int moduleIndex = (int)decoder.ReadUInt();
                 mdReader = OpenReferenceAssembly(moduleIndex);
@@ -949,9 +950,9 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             }
 
             string owningType = null;
-            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_OwnerType) != 0)
+            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.OwnerType) != 0)
             {
-                if ((methodFlags & (uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_UpdateContext) == 0)
+                if ((methodFlags & (uint)ReadyToRunMethodSigFlags.UpdateContext) == 0)
                 {
                     mdReader = decoder.GetMetadataReaderFromModuleOverride() ?? mdReader;
                     if ((_composite) && mdReader == null)
@@ -962,13 +963,13 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                 }
                 owningType = decoder.ReadTypeSignatureNoEmit();
             }
-            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_SlotInsteadOfToken) != 0)
+            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.SlotInsteadOfToken) != 0)
             {
                 throw new NotImplementedException();
             }
             EntityHandle methodHandle;
             int rid = (int)decoder.ReadUInt();
-            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_MemberRefToken) != 0)
+            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.MemberRefToken) != 0)
             {
                 methodHandle = MetadataTokens.MemberReferenceHandle(rid);
             }
@@ -977,7 +978,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                 methodHandle = MetadataTokens.MethodDefinitionHandle(rid);
             }
             string[] methodTypeArgs = null;
-            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_MethodInstantiation) != 0)
+            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.MethodInstantiation) != 0)
             {
                 uint typeArgCount = decoder.ReadUInt();
                 methodTypeArgs = new string[typeArgCount];
@@ -988,21 +989,21 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             }
 
             string constrainedType = null;
-            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_Constrained) != 0)
+            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.Constrained) != 0)
             {
                 constrainedType = decoder.ReadTypeSignatureNoEmit();
             }
 
             List<string> signaturePrefixes = [];
-            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_UnboxingStub) != 0)
+            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.UnboxingStub) != 0)
             {
                 signaturePrefixes.Add("[UNBOX]");
             }
-            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_InstantiatingStub) != 0)
+            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.InstantiatingStub) != 0)
             {
                 signaturePrefixes.Add("[INST]");
             }
-            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_AsyncVariant) != 0)
+            if ((methodFlags & (uint)ReadyToRunMethodSigFlags.AsyncVariant) != 0)
             {
                 signaturePrefixes.Add("[ASYNC]");
             }

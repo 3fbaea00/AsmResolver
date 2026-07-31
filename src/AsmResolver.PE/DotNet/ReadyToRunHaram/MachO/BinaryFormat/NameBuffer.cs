@@ -45,7 +45,10 @@ internal struct NameBuffer
                 length++;
             }
 
-            return System.Text.Encoding.UTF8.GetString(bytePtr, length);
+            var bytes = new byte[length];
+            new Span<byte>(bytePtr, length).CopyTo(bytes);
+
+            return System.Text.Encoding.UTF8.GetString(bytes, 0, length);
         }
     }
 }

@@ -1,23 +1,15 @@
+using AsmResolver.PE.DotNet.ReadyToRun.I386;
 using System.Collections.Generic;
 
 namespace AsmResolver.PE.DotNet.ReadyToRun.x86
 {
-    public enum Action
-    {
-        POP = 0x00,
-        PUSH = 0x01,
-        KILL = 0x02,
-        LIVE = 0x03,
-        DEAD = 0x04
-    }
-
     public class CalleeSavedRegister : BaseGcTransition
     {
-        public CalleeSavedRegistersI386 Register { get; set; }
+        public I386.CalleeSavedRegister Register { get; set; }
 
         public CalleeSavedRegister() { }
 
-        public CalleeSavedRegister(int codeOffset, CalleeSavedRegistersI386 reg)
+        public CalleeSavedRegister(int codeOffset, I386.CalleeSavedRegister reg)
             : base(codeOffset)
         {
             Register = reg;
@@ -39,15 +31,15 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.x86
 
     public class GcTransitionRegister : BaseGcTransition
     {
-        public RegistersI386 Register { get; set; }
-        public Action IsLive { get; set; }
+        public I386.Register Register { get; set; }
+        public GCTransitionAction IsLive { get; set; }
         public int PushCountOrPopSize { get; set; }
         public bool IsThis { get; set; }
         public bool Iptr { get; set; }
 
         public GcTransitionRegister() { }
 
-        public GcTransitionRegister(int codeOffset, RegistersI386 reg, Action isLive, bool isThis = false, bool iptr = false, int pushCountOrPopSize = -1)
+        public GcTransitionRegister(int codeOffset, I386.Register reg, GCTransitionAction isLive, bool isThis = false, bool iptr = false, int pushCountOrPopSize = -1)
             : base(codeOffset)
         {
             Register = reg;
@@ -61,14 +53,14 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.x86
         private bool _isEbpFrame;
         public uint ArgOffset { get; set; }
         public uint ArgCount { get; set; }
-        public Action Act { get; set; }
+        public GCTransitionAction Act { get; set; }
         public bool IsPtr { get; set; }
         public bool IsThis { get; set; }
         public bool Iptr { get; set; }
 
         public GcTransitionPointer() { }
 
-        public GcTransitionPointer(int codeOffset, uint argOffs, uint argCnt, Action act, bool isEbpFrame, bool isThis = false, bool iptr = false, bool isPtr = true)
+        public GcTransitionPointer(int codeOffset, uint argOffs, uint argCnt, GCTransitionAction act, bool isEbpFrame, bool isThis = false, bool iptr = false, bool isPtr = true)
             : base(codeOffset)
         {
             _isEbpFrame = isEbpFrame;
@@ -84,10 +76,10 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.x86
     {
         public struct CallRegister
         {
-            public RegistersI386 Register { get; set; }
+            public I386.Register Register { get; set; }
             public bool IsByRef { get; set; }
 
-            public CallRegister(RegistersI386 reg, bool isByRef)
+            public CallRegister(I386.Register reg, bool isByRef)
             {
                 Register = reg;
                 IsByRef = isByRef;
@@ -129,19 +121,19 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.x86
             PtrArgs = new List<PtrArg>();
             if ((regMask & 1) != 0)
             {
-                RegistersI386 reg = RegistersI386.EDI;
+                I386.Register reg = I386.Register.EDI;
                 bool isByRef = (byRefRegMask & 1) != 0;
                 CallRegisters.Add(new CallRegister(reg, isByRef));
             }
             if ((regMask & 2) != 0)
             {
-                RegistersI386 reg = RegistersI386.ESI;
+                I386.Register reg = I386.Register.ESI;
                 bool isByRef = (byRefRegMask & 2) != 0;
                 CallRegisters.Add(new CallRegister(reg, isByRef));
             }
             if ((regMask & 4) != 0)
             {
-                RegistersI386 reg = RegistersI386.EBX;
+                I386.Register reg = I386.Register.EBX;
                 bool isByRef = (byRefRegMask & 4) != 0;
                 CallRegisters.Add(new CallRegister(reg, isByRef));
             }
@@ -149,7 +141,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.x86
             {
                 if ((regMask & 8) != 0)
                 {
-                    RegistersI386 reg = RegistersI386.EBP;
+                    I386.Register reg = I386.Register.EBP;
                     CallRegisters.Add(new CallRegister(reg, false));
                 }
             }

@@ -10,7 +10,6 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
     /// </summary>
     enum InfoHdrAdjustConstants
     {
-        // Constants
         SET_FRAMESIZE_MAX = 7,
         SET_ARGCOUNT_MAX = 8,
         SET_PROLOGSIZE_MAX = 16,

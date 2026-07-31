@@ -92,7 +92,6 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.x86
 
     public class InfoHdrDecoder
     {
-
         private const uint HAS_VARPTR = 0xFFFFFFFF;
         private const uint HAS_UNTRACKED = 0xFFFFFFFF;
         private const uint HAS_GS_COOKIE_OFFSET = 0xFFFFFFFF;

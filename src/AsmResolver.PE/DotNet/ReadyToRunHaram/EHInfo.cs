@@ -1,29 +1,10 @@
+using AsmResolver.PE.DotNet.ReadyToRun.Enumerations;
 using System;
 using System.Collections.Generic;
 using System.IO;
 
 namespace AsmResolver.PE.DotNet.ReadyToRun
 {
-    /// <summary>
-    /// If COR_ILMETHOD_SECT_HEADER::Kind() = CorILMethod_Sect_EHTable then the attribute
-    /// is a list of exception handling clauses.  There are two formats, fat or small
-    /// </summary>
-    [Flags]
-    public enum CorExceptionFlag
-    {
-        COR_ILEXCEPTION_CLAUSE_NONE,                    // This is a typed handler
-        COR_ILEXCEPTION_CLAUSE_OFFSETLEN = 0x0000,      // Deprecated
-        COR_ILEXCEPTION_CLAUSE_DEPRECATED = 0x0000,     // Deprecated
-        COR_ILEXCEPTION_CLAUSE_FILTER = 0x0001,         // If this bit is on, then this EH entry is for a filter
-        COR_ILEXCEPTION_CLAUSE_FINALLY = 0x0002,        // This clause is a finally clause
-        COR_ILEXCEPTION_CLAUSE_FAULT = 0x0004,          // Fault clause (finally that is called on exception only)
-        COR_ILEXCEPTION_CLAUSE_DUPLICATED = 0x0008,     // duplicated clause. This clause was duplicated to a funclet which was pulled out of line
-        COR_ILEXCEPTION_CLAUSE_SAMETRY = 0x0010,        // This clause covers same try block as the previous one
-        COR_ILEXCEPTION_CLAUSE_R2R_SYSTEM_EXCEPTION = 0x0020, // R2R only: This clause catches System.Exception
-
-        COR_ILEXCEPTION_CLAUSE_KIND_MASK = COR_ILEXCEPTION_CLAUSE_FILTER | COR_ILEXCEPTION_CLAUSE_FINALLY | COR_ILEXCEPTION_CLAUSE_FAULT,
-    }
-
     /// <summary>
     /// This class represents a single exception handling clause. It basically corresponds
     /// to IMAGE_COR_ILMETHOD_SECT_EH_CLAUSE_FAT in
@@ -39,7 +20,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         /// <summary>
         /// Flags describing the exception handler.
         /// </summary>
-        private CorExceptionFlag Flags;
+        private CorILExceptionClause Flags;
 
         /// <summary>
         /// Starting offset of the try block
@@ -74,21 +55,21 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
 
         /// <summary>
         /// Read the EH clause from a given file offset in the PE image.
-        /// </summary>
-        /// <param name="reader">R2R image reader<param>
+        /// <param name="reader">R2R image reader</param>
         /// <param name="offset">Offset of the EH clause in the image</param>
+        /// </summary>
         public EHClause(ReadyToRunReader reader, int offset)
         {
-            Flags = (CorExceptionFlag)BitConverter.ToUInt32(reader.Image, offset + 0 * sizeof(uint));
+            Flags = (CorILExceptionClause)BitConverter.ToUInt32(reader.Image, offset + 0 * sizeof(uint));
             TryOffset = BitConverter.ToUInt32(reader.Image, offset + 1 * sizeof(uint));
             TryEnd = BitConverter.ToUInt32(reader.Image, offset + 2 * sizeof(uint));
             HandlerOffset = BitConverter.ToUInt32(reader.Image, offset + 3 * sizeof(uint));
             HandlerEnd = BitConverter.ToUInt32(reader.Image, offset + 4 * sizeof(uint));
             ClassTokenOrFilterOffset = BitConverter.ToUInt32(reader.Image, offset + 5 * sizeof(uint));
 
-            if ((Flags & CorExceptionFlag.COR_ILEXCEPTION_CLAUSE_KIND_MASK) == CorExceptionFlag.COR_ILEXCEPTION_CLAUSE_NONE)
+            if ((Flags & CorILExceptionClause.KindMask) == CorILExceptionClause.None)
             {
-                if ((Flags & CorExceptionFlag.COR_ILEXCEPTION_CLAUSE_R2R_SYSTEM_EXCEPTION) != 0)
+                if ((Flags & CorILExceptionClause.R2RSystemException) != 0)
                 {
                     ClassName = "System.Exception";
                 }
@@ -126,21 +107,21 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                 writer.Write($"(RVA {(HandlerEnd + methodRva):X4}) ");
             writer.Write($"ClsFlt {ClassTokenOrFilterOffset:X4}");
 
-            switch (Flags & CorExceptionFlag.COR_ILEXCEPTION_CLAUSE_KIND_MASK)
+            switch (Flags & CorILExceptionClause.KindMask)
             {
-                case CorExceptionFlag.COR_ILEXCEPTION_CLAUSE_NONE:
+                case CorILExceptionClause.None:
                     writer.Write($" CATCH: {ClassName ?? "null"}");
                     break;
 
-                case CorExceptionFlag.COR_ILEXCEPTION_CLAUSE_FILTER:
+                case CorILExceptionClause.Filter:
                     writer.Write($" FILTER (RVA {(ClassTokenOrFilterOffset + methodRva):X4})");
                     break;
 
-                case CorExceptionFlag.COR_ILEXCEPTION_CLAUSE_FINALLY:
+                case CorILExceptionClause.Finally:
                     writer.Write(" FINALLY");
                     break;
 
-                case CorExceptionFlag.COR_ILEXCEPTION_CLAUSE_FAULT:
+                case CorILExceptionClause.Fault:
                     writer.Write(" FAULT");
                     break;
 
@@ -148,12 +129,12 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                     throw new NotImplementedException(Flags.ToString());
             }
 
-            if ((Flags & CorExceptionFlag.COR_ILEXCEPTION_CLAUSE_DUPLICATED) != (CorExceptionFlag)0)
+            if ((Flags & CorILExceptionClause.Duplicated) != (CorILExceptionClause)0)
             {
                 writer.Write(" DUPLICATED");
             }
 
-            if ((Flags & CorExceptionFlag.COR_ILEXCEPTION_CLAUSE_SAMETRY) != (CorExceptionFlag)0)
+            if ((Flags & CorILExceptionClause.Sametry) != (CorILExceptionClause)0)
             {
                 writer.Write(" SAMETRY");
             }
@@ -186,7 +167,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         /// <summary>
         /// List of EH clauses for the runtime function.
         /// </summary>
-        public IReadOnlyList<EHClause> EHClauses
+        public IList<EHClause> EHClauses
         {
             get
             {

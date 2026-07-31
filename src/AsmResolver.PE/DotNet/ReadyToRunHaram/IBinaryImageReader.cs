@@ -27,7 +27,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         /// <summary>
         /// Get the entire image content
         /// </summary>
-        ImmutableArray<byte> GetEntireImage();
+        byte[] GetEntireImage();
 
         /// <summary>
         /// Get the index in the image byte array corresponding to the RVA

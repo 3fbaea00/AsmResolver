@@ -47,7 +47,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.x86
 
         public string GetRegisterName(int registerNumber)
         {
-            return ((x86.RegistersI386)registerNumber).ToString();
+            return ((I386.Register)registerNumber).ToString();
         }
 
         private void AddNewTransition(BaseGcTransition transition)
@@ -67,12 +67,12 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.x86
 
                 if (argOffs != 0)
                 {
-                    AddNewTransition(new GcTransitionPointer((int)curOffs, argOffs, argCnt - argOffs, Action.POP, Header.EbpFrame));
+                    AddNewTransition(new GcTransitionPointer((int)curOffs, argOffs, argCnt - argOffs, GCTransitionAction.Pop, Header.EbpFrame));
                 }
             }
             else
             {
-                AddNewTransition(new GcTransitionPointer((int)curOffs, argOffs, argOffs + 1, Action.PUSH, Header.EbpFrame, isThis, iptr));
+                AddNewTransition(new GcTransitionPointer((int)curOffs, argOffs, argOffs + 1, GCTransitionAction.Push, Header.EbpFrame, isThis, iptr));
                 isThis = false;
                 iptr = false;
             }
@@ -100,10 +100,10 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.x86
 
                     curOffs += val & 0x7;
 
-                    Action isLive = Action.LIVE;
+                    GCTransitionAction isLive = GCTransitionAction.Live;
                     if ((val & 0x40) == 0)
-                        isLive = Action.DEAD;
-                    AddNewTransition(new GcTransitionRegister((int)curOffs, (RegistersI386)((val >> 3) & 7), isLive, isThis, iptr));
+                        isLive = GCTransitionAction.Dead;
+                    AddNewTransition(new GcTransitionRegister((int)curOffs, (I386.Register)((val >> 3) & 7), isLive, isThis, iptr));
 
                     isThis = false;
                     iptr = false;
@@ -139,7 +139,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.x86
 
                         curOffs += (val & 0x07);
                         argCnt++;
-                        AddNewTransition(new GcTransitionPointer((int)curOffs, argOffs, argCnt, Action.PUSH, Header.EbpFrame, false, false, false));
+                        AddNewTransition(new GcTransitionPointer((int)curOffs, argOffs, argCnt, GCTransitionAction.Push, Header.EbpFrame, false, false, false));
                     }
 
                     continue;
@@ -168,7 +168,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.x86
                         break;
                     case 0xFD:
                         argOffs = imageReader.DecodeUnsignedGc(ref offset);
-                        AddNewTransition(new GcTransitionPointer((int)curOffs, argOffs, argCnt, Action.KILL, Header.EbpFrame));
+                        AddNewTransition(new GcTransitionPointer((int)curOffs, argOffs, argCnt, GCTransitionAction.Kill, Header.EbpFrame));
                         break;
                     case 0xF9:
                         argOffs = imageReader.DecodeUnsignedGc(ref offset);
@@ -219,13 +219,13 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.x86
                             }
                             else
                             {
-                                RegistersI386 reg;
+                                I386.Register reg;
                                 if ((val & 0x10) != 0)
-                                    reg = RegistersI386.EDI;
+                                    reg = I386.Register.EDI;
                                 else if ((val & 0x20) != 0)
-                                    reg = RegistersI386.ESI;
+                                    reg = I386.Register.ESI;
                                 else if ((val & 0x40) != 0)
-                                    reg = RegistersI386.EBX;
+                                    reg = I386.Register.EBX;
                                 else
                                     throw new BadImageFormatException("Invalid register");
                                 transition = new GcTransitionCall((int)curOffs);
@@ -375,13 +375,13 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.x86
                         {
                             // push    000DDDDD          push one item, 5-bit delta
                             curOffs += val & 0x1F;
-                            AddNewTransition(new GcTransitionRegister((int)curOffs, RegistersI386.ESP, Action.PUSH));
+                            AddNewTransition(new GcTransitionRegister((int)curOffs, I386.Register.ESP, GCTransitionAction.Push));
                         }
                         else
                         {
                             // push    00100000 [pushCount]     ESP push multiple items
                             uint pushCount = imageReader.DecodeUnsignedGc(ref offset);
-                            AddNewTransition(new GcTransitionRegister((int)curOffs, RegistersI386.ESP, Action.PUSH, false, false, (int)pushCount));
+                            AddNewTransition(new GcTransitionRegister((int)curOffs, I386.Register.ESP, GCTransitionAction.Push, false, false, (int)pushCount));
                         }
                     }
                     else
@@ -407,7 +407,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.x86
 
                             if (popSize > 0)
                             {
-                                AddNewTransition(new GcTransitionRegister((int)curOffs, RegistersI386.ESP, Action.POP, false, false, (int)popSize));
+                                AddNewTransition(new GcTransitionRegister((int)curOffs, I386.Register.ESP, GCTransitionAction.Pop, false, false, (int)popSize));
                             }
                             else
                                 lastSkip = skip;
@@ -466,7 +466,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun.x86
                                     break;
 
                                 case 0x04:
-                                    AddNewTransition(new CalleeSavedRegister((int)curOffs, (CalleeSavedRegistersI386)(val & 0x3)));
+                                    AddNewTransition(new CalleeSavedRegister((int)curOffs, (I386.CalleeSavedRegister)(val & 0x3)));
                                     break;
 
                                 case 0x08:

@@ -70,15 +70,15 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             switch (machine)
             {
                 case MachineType.I386:
-                    return ((RegistersI386)regnum).ToString();
+                    return ((I386.Register)regnum).ToString();
                 case MachineType.Amd64:
-                    return ((RegistersAmd64)regnum).ToString();
+                    return ((Amd64.Register)regnum).ToString();
                 case MachineType.Arm64:
-                    return ((RegistersArm64)regnum).ToString();
+                    return ((Arm64.Register)regnum).ToString();
                 case MachineType.LoongArch64:
-                    return ((RegistersLoongArch64)regnum).ToString();
+                    return ((LoongArch64.Register)regnum).ToString();
                 case MachineType.RiscV64:
-                    return ((RegistersRiscV64)regnum).ToString();
+                    return ((RiscV64.Register)regnum).ToString();
                 default:
                     throw new NotImplementedException($"No implementation for machine type {machine}.");
             }

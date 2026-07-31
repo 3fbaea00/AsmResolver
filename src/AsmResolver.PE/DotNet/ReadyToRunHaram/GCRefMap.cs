@@ -1,6 +1,5 @@
 using AsmResolver.PE.File;
 using System.Collections.Generic;
-using System.Diagnostics;
 
 namespace AsmResolver.PE.DotNet.ReadyToRun
 {

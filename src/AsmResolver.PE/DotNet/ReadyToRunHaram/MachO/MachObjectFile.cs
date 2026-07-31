@@ -12,7 +12,7 @@ internal unsafe partial class MachObjectFile
 {
     public static bool IsMachOImage(string filePath)
     {
-        using (BinaryReader reader = new BinaryReader(File.OpenRead(filePath)))
+        using (BinaryReader reader = new BinaryReader(System.IO.File.OpenRead(filePath)))
         {
             if (reader.BaseStream.Length < 256) // Header size
             {

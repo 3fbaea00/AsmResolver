@@ -1,3 +1,4 @@
+using AsmResolver.PE.DotNet.ReadyToRun.Enumerations;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -152,13 +153,13 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                 return false;
 
             var reader = peReader.GetSectionData(managedNativeDirectory.RelativeVirtualAddress).GetReader();
-            if (reader.ReadUInt32() != ReadyToRunHeaderConstants.Signature)
+            if (reader.ReadUInt32() != 0x00525452)
                 return false;
 
             reader.ReadUInt16(); // MajorVersion
             reader.ReadUInt16(); // MinorVersion
 
-            return (reader.ReadUInt32() & (uint)ReadyToRunFlags.READYTORUN_FLAG_PlatformNeutralSource) != 0;
+            return (reader.ReadUInt32() & (uint)ReadyToRunFlags.PlatformNeutralSource) != 0;
         }
     }
 }
