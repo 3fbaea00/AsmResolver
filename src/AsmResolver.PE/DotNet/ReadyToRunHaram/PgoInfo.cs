@@ -81,7 +81,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
 
                     SignatureFormattingOptions formattingOptions = new SignatureFormattingOptions();
 
-                    _pgoData = PgoProcessor.ParsePgoData<string, string>(new PgoDataLoader(_r2rReader, formattingOptions), compressedIntParser, true).ToArray();
+                    _pgoData = PgoProcessor.ParsePgoData(new PgoDataLoader(_r2rReader, formattingOptions), compressedIntParser, true).ToArray();
                     _size = compressedIntParser.Offset - Offset;
                 }
             }

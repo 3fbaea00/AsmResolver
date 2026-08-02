@@ -2,6 +2,7 @@ using AsmResolver.PE.DotNet.Metadata.Tables;
 using AsmResolver.PE.DotNet.ReadyToRun.Enumerations;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 
 namespace AsmResolver.PE.DotNet.ReadyToRun
@@ -391,7 +392,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         TType GetCanonType();
         TMethod GetMethodFromMethodDef(MetadataReader reader, MethodDefinitionHandle handle, TType owningTypeOverride);
         TMethod GetMethodFromMemberRef(MetadataReader reader, MemberReferenceHandle handle, TType owningTypeOverride);
-        TMethod GetInstantiatedMethod(TMethod uninstantiatedMethod, ImmutableArray<TType> instantiation);
+        TMethod GetInstantiatedMethod(TMethod uninstantiatedMethod, TType[] instantiation);
         TMethod GetConstrainedMethod(TMethod method, TType constraint);
         TMethod GetMethodWithFlags(ReadyToRunMethodSigFlags flags, TMethod method);
     }
@@ -689,7 +690,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                         {
                             lowerBounds[lowerBoundIndex] = ReadInt();
                         }
-                        ArrayShape arrayShape = new ArrayShape((int)rank, ((int[])(object)sizes).ToImmutableArray(), lowerBounds.ToImmutableArray());
+                        ArrayShape arrayShape = new ArrayShape((int)rank, (int[])(object)sizes, lowerBounds);
                         return _provider.GetArrayType(elementType, arrayShape);
                     }
 
@@ -704,7 +705,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                             parsedTypes.Add(outerDecoder.ParseType());
                         }
                         _offset = outerDecoder.Offset;
-                        return _provider.GetGenericInstantiation(genericType, parsedTypes.ToImmutableArray());
+                        return _provider.GetGenericInstantiation(genericType, parsedTypes);
                     }
 
                 case ElementType.FnPtr:
@@ -720,7 +721,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                     int requiredParamCount = -1;
                     for (int i = 0; i < paramCount; i++)
                     {
-                        while (PeekElementType() == ElementType.ELEMENT_TYPE_SENTINEL)
+                        while (PeekElementType() == ElementType.Sentinel)
                         {
                             requiredParamCount = i;
                             ReadElementType(); // Skip over sentinel
@@ -863,7 +864,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                 {
                     instantiationArgs[typeArgIndex] = ParseType();
                 }
-                result = _provider.GetInstantiatedMethod(result, instantiationArgs.ToImmutableArray());
+                result = _provider.GetInstantiatedMethod(result, instantiationArgs);
             }
 
             if ((methodFlags & (uint)ReadyToRunMethodSigFlags.Constrained) != 0)
@@ -974,7 +975,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                     owningTypeOverride: owningTypeOverride);
             }
 
-            public string GetInstantiatedMethod(string uninstantiatedMethod, ImmutableArray<string> instantiation)
+            public string GetInstantiatedMethod(string uninstantiatedMethod, string[] instantiation)
             {
                 StringBuilder builder = new StringBuilder();
                 builder.Append(uninstantiatedMethod);
@@ -1348,7 +1349,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                         ReadyToRunFixupKind.Check_TypeLayout => " (CHECK_TYPE_LAYOUT)",
                         ReadyToRunFixupKind.Verify_TypeLayout => " (VERIFY_TYPE_LAYOUT)",
                         ReadyToRunFixupKind.ContinuationLayout => " (CONTINUATION_LAYOUT)",
-                        _ => throw new UnreachableException()
+                        _ => throw new Exception() // unreachable
                     });
                     break;
 
@@ -1385,7 +1386,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                     ParseMethod(builder);
                     builder.Append($" ImplType :");
                     ParseType(builder);
-                    if (flags.HasFlag(ReadyToRunVirtualFunctionOverrideFlags.VirtualFunctionOverridden))
+                    if ((flags & ReadyToRunVirtualFunctionOverrideFlags.VirtualFunctionOverridden) != 0)
                     {
                         builder.Append($" ImplMethod :");
                         ParseMethod(builder);
@@ -1510,14 +1511,14 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             int actualSize = (int)ReadUInt();
             builder.Append($" Size {actualSize}");
 
-            if (layoutFlags.HasFlag(ReadyToRunTypeLayoutFlags.HFA))
+            if ((layoutFlags & ReadyToRunTypeLayoutFlags.HFA) != 0)
             {
                 builder.Append($" HFAType {ReadUInt()}");
             }
 
-            if (layoutFlags.HasFlag(ReadyToRunTypeLayoutFlags.ManagedAlignment))
+            if ((layoutFlags & ReadyToRunTypeLayoutFlags.ManagedAlignment) != 0)
             {
-                if (!layoutFlags.HasFlag(ReadyToRunTypeLayoutFlags.NativeAlignment))
+                if ((layoutFlags & ReadyToRunTypeLayoutFlags.NativeAlignment) == 0)
                 {
                     builder.Append($" Align {ReadUInt()}");
                 }
@@ -1527,9 +1528,9 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                 }
             }
 
-            if (layoutFlags.HasFlag(ReadyToRunTypeLayoutFlags.GCLayout))
+            if ((layoutFlags & ReadyToRunTypeLayoutFlags.GCLayout) != 0)
             {
-                if (!layoutFlags.HasFlag(ReadyToRunTypeLayoutFlags.GCLayoutNoGCPointers))
+                if ((layoutFlags & ReadyToRunTypeLayoutFlags.GCLayoutNoGCPointers) == 0)
                 {
                     int cbGCRefMap = (actualSize / _contextReader.TargetPointerSize + 7) / 8;
                     builder.Append(" GCLayout 0x");

@@ -1,3 +1,4 @@
+using AsmResolver.PE.DotNet.Metadata.Tables;
 using AsmResolver.PE.DotNet.ReadyToRun.Amd64;
 using AsmResolver.PE.DotNet.ReadyToRun.Enumerations;
 using AsmResolver.PE.File;
@@ -48,7 +49,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             _reader = reader;
         }
 
-        public IReadOnlyList<string> AvailableTypes
+        public IList<string> AvailableTypes
         {
             get
             {
@@ -57,7 +58,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             }
         }
 
-        public IReadOnlyList<ReadyToRunMethod> Methods
+        public IList<ReadyToRunMethod> Methods
         {
             get
             {
@@ -87,7 +88,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
 
         // Header
         private OperatingSystem _operatingSystem;
-        private Machine _machine;
+        private SupportedMachineType _machine;
         private int _pointerSize;
         private bool _composite;
         private ulong _imageBase;
@@ -168,7 +169,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         /// <summary>
         /// The type of target machine
         /// </summary>
-        public MachineType Machine
+        public SupportedMachineType Machine
         {
             get
             {
@@ -307,7 +308,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         /// <summary>
         /// List of import sections present in the R2R executable.
         /// </summary>
-        public IReadOnlyList<ReadyToRunImportSection> ImportSections
+        public IList<ReadyToRunImportSection> ImportSections
         {
             get
             {
@@ -319,7 +320,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         /// <summary>
         /// Map from import cell addresses to their symbolic names.
         /// </summary>
-        public IReadOnlyDictionary<int, ReadyToRunSignature> ImportSignatures
+        public IDictionary<int, ReadyToRunSignature> ImportSignatures
         {
             get
             {
@@ -453,7 +454,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             if (peReader.PEHeaders.CorHeader == null)
                 return false;
 
-            if ((peReader.PEHeaders.CorHeader.Flags & CorFlags.ILLibrary) == 0)
+            if ((peReader.PEHeaders.CorHeader.Flags & DotNetDirectoryFlags.ILLibrary) == 0)
             {
                 return peReader.TryGetCompositeReadyToRunHeader(out _);
             }
@@ -485,7 +486,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
 
                 if (CompositeReader == null)
                 {
-                    Image ??= File.ReadAllBytes(Filename);
+                    Image ??= System.IO.File.ReadAllBytes(Filename);
                     ImageReader = new NativeReader(new MemoryStream(Image));
                     byte[] image = Image;
                     ImagePin = new PinningReference(image);
@@ -493,19 +494,14 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                     {
                         CompositeReader = new MachO.MachOImageReader(image);
                     }
-                    else if (WebcilImageReader.IsWebcilImage(image))
-                    {
-                        CompositeReader = new WebcilImageReader(image);
-                    }
                     else
                     {
-                        CompositeReader = new PEImageReader(new PEReader(ImmutableCollectionsMarshal.AsImmutableArray(image)));
+                        CompositeReader = new PEImageReader(new PEReader(image));
                     }
                 }
                 else
                 {
-                    ImmutableArray<byte> content = CompositeReader.GetEntireImage();
-                    Image = ImmutableCollectionsMarshal.AsArray(content);
+                    Image = CompositeReader.GetEntireImage();
                     ImageReader = new NativeReader(new MemoryStream(Image));
                     ImagePin = new PinningReference(Image);
                 }
@@ -618,7 +614,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             }
         }
 
-        public IReadOnlyDictionary<TMethod, ReadyToRunMethod> GetCustomMethodToRuntimeFunctionMapping<TType, TMethod, TGenericContext>(IR2RSignatureTypeProvider<TType, TMethod, TGenericContext> provider)
+        public IDictionary<TMethod, ReadyToRunMethod> GetCustomMethodToRuntimeFunctionMapping<TType, TMethod, TGenericContext>(IR2RSignatureTypeProvider<TType, TMethod, TGenericContext> provider)
         {
             EnsureEntrypointRuntimeFunctionToReadyToRunMethodDict();
 
@@ -670,14 +666,14 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
 
             switch (_machine)
             {
-                case MachineType.I386:
+                case SupportedMachineType.I386:
                     _pointerSize = 4;
                     break;
 
-                case MachineType.Amd64:
-                case MachineType.Arm64:
-                case MachineType.LoongArch64:
-                case MachineType.RiscV64:
+                case SupportedMachineType.Amd64:
+                case SupportedMachineType.Arm64:
+                case SupportedMachineType.LoongArch64:
+                case SupportedMachineType.RiscV64:
                     _pointerSize = 8;
                     break;
 
@@ -741,7 +737,9 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             if (ReadyToRunHeader.Sections.TryGetValue(ReadyToRunSectionType.ManifestMetadata, out ReadyToRunSection manifestMetadata))
             {
                 int metadataOffset = GetOffset(manifestMetadata.RelativeVirtualAddress);
-                var metadataImage = ImmutableArray.Create(Image, metadataOffset, manifestMetadata.Size);
+                int[] metadataImage = new int[manifestMetadata.Size];
+                Array.Copy(Image, 0, metadataImage, metadataOffset, manifestMetadata.Size);
+
                 _manifestReaderProvider = MetadataReaderProvider.FromMetadataImage(metadataImage);
                 _manifestReader = _manifestReaderProvider.GetMetadataReader();
                 _manifestAssemblyMetadata = CompositeReader.GetManifestAssemblyMetadata(_manifestReader);
@@ -800,7 +798,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         /// </summary>
         internal int CalculateRuntimeFunctionSize()
         {
-            if (Machine == MachineType.Amd64)
+            if (Machine == SupportedMachineType.Amd64)
             {
                 return 3 * sizeof(int);
             }
@@ -1494,14 +1492,14 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                 {
                     switch (Machine)
                     {
-                        case MachineType.I386:
+                        case SupportedMachineType.I386:
                             entrySize = 4;
                             break;
 
-                        case MachineType.Amd64:
-                        case MachineType.Arm64:
-                        case MachineType.LoongArch64:
-                        case MachineType.RiscV64:
+                        case SupportedMachineType.Amd64:
+                        case SupportedMachineType.Arm64:
+                        case SupportedMachineType.LoongArch64:
+                        case SupportedMachineType.RiscV64:
                             entrySize = 8;
                             break;
 

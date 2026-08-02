@@ -1,3 +1,4 @@
+using AsmResolver.PE.DotNet.ReadyToRun.Enumerations;
 using AsmResolver.PE.File;
 using System;
 using System.Collections.Generic;
@@ -283,7 +284,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
 
         public MethodSignature<string> Signature { get; }
 
-        public ImmutableArray<string> LocalSignature { get; }
+        public string[] LocalSignature { get; }
 
         /// <summary>
         /// The type that the method belongs to
@@ -372,7 +373,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         private int? _fixupOffset;
         private List<RuntimeFunction> _runtimeFunctions;
 
-        public IReadOnlyList<FixupCell> Fixups
+        public IList<FixupCell> Fixups
         {
             get
             {
@@ -423,7 +424,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                     MethodDefinition methodDef = ComponentReader.MetadataReader.GetMethodDefinition((MethodDefinitionHandle)MethodHandle);
                     if (methodDef.RelativeVirtualAddress != 0)
                     {
-                        ImmutableArray<string> localSig = default;
+                        string[] localSig = default;
                         ComponentReader.GetSectionData(methodDef.RelativeVirtualAddress, (BlobReader sectionData) =>
                         {
                             if (sectionData.Length > 0)
@@ -531,7 +532,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
                         _readyToRunReader.ReadyToRunHeader.MajorVersion,
                         _readyToRunReader.ReadyToRunHeader.MinorVersion);
 
-                    if (_readyToRunReader.Machine == MachineType.I386)
+                    if (_readyToRunReader.Machine == SupportedMachineType.I386)
                     {
                         _gcInfo = new x86.GcInfo(_readyToRunReader.ImageReader, gcInfoOffset, gcInfoVersion);
                     }

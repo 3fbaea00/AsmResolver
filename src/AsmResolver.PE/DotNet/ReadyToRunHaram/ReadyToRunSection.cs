@@ -1,3 +1,5 @@
+using AsmResolver.PE.DotNet.ReadyToRun.Enumerations;
+
 namespace AsmResolver.PE.DotNet.ReadyToRun
 {
     public struct ReadyToRunSection

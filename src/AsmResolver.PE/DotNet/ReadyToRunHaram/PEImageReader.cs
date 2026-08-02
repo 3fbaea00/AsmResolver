@@ -1,3 +1,4 @@
+using AsmResolver.PE.File;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -11,7 +12,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
     {
         private readonly PEReader _peReader;
 
-        public Machine Machine { get; }
+        public MachineType Machine { get; }
         public OperatingSystem OperatingSystem { get; }
         public ulong ImageBase => _peReader.PEHeaders.PEHeader.ImageBase;
 
@@ -26,8 +27,8 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
 
             foreach (OperatingSystem os in System.Enum.GetValues(typeof(OperatingSystem)))
             {
-                Machine candidateMachine = (Machine)(rawMachine ^ (uint)os);
-                if (System.Enum.IsDefined(typeof(Machine), candidateMachine))
+                MachineType candidateMachine = (MachineType)(rawMachine ^ (uint)os);
+                if (System.Enum.IsDefined(typeof(MachineType), candidateMachine))
                 {
                     Machine = candidateMachine;
                     OperatingSystem = os;
@@ -41,13 +42,13 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             }
         }
 
-        public ImmutableArray<byte> GetEntireImage() => _peReader.GetEntireImage().GetContent();
+        public byte[] GetEntireImage() => _peReader.GetEntireImage().GetContent();
 
         public int GetOffset(int rva) => _peReader.GetOffset(rva);
 
         public bool TryGetReadyToRunHeader(out int rva, out bool isComposite)
         {
-            if ((_peReader.PEHeaders.CorHeader.Flags & CorFlags.ILLibrary) == 0)
+            if ((_peReader.PEHeaders.CorHeader.Flags & DotNetDirectoryFlags.ILLibrary) == 0)
             {
                 // Composite R2R - check for RTR_HEADER export
                 if (_peReader.TryGetCompositeReadyToRunHeader(out rva))
@@ -83,7 +84,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             Dictionary<string, int> sectionMap = [];
             foreach (SectionHeader sectionHeader in _peReader.PEHeaders.SectionHeaders)
             {
-                sectionMap.Add(sectionHeader.Name, sectionHeader.SizeOfRawData);
+                sectionMap.Add(sectionHeader.Name, (int) sectionHeader.SizeOfRawData);
             }
 
             return sectionMap;

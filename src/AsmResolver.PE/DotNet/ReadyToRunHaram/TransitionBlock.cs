@@ -1,3 +1,4 @@
+using AsmResolver.PE.DotNet.ReadyToRun.Enumerations;
 using AsmResolver.PE.File;
 using System;
 
@@ -11,19 +12,19 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         {
             switch (reader.Machine)
             {
-                case MachineType.I386:
+                case SupportedMachineType.I386:
                     return X86TransitionBlock.Instance;
 
-                case MachineType.Amd64:
+                case SupportedMachineType.Amd64:
                     return reader.OperatingSystem == OperatingSystem.Windows ? X64WindowsTransitionBlock.Instance : X64UnixTransitionBlock.Instance;
 
-                case MachineType.Arm64:
+                case SupportedMachineType.Arm64:
                     return Arm64TransitionBlock.Instance;
 
-                case MachineType.LoongArch64:
+                case SupportedMachineType.LoongArch64:
                     return LoongArch64TransitionBlock.Instance;
 
-                case MachineType.RiscV64:
+                case SupportedMachineType.RiscV64:
                     return RiscV64TransitionBlock.Instance;
 
                 default:

@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.IO;
 
 namespace AsmResolver.PE.DotNet.ReadyToRun
@@ -65,13 +66,13 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             return _littleEndian ? BinaryPrimitives.ReadInt32LittleEndian(bytes) : BinaryPrimitives.ReadInt32BigEndian(bytes);
         }
 
-        // <summary>
+        /// <summary>
         /// Extracts an unsigned 32bit value from the image byte array
-        /// </summary>
         /// <param name="start">Starting index of the value</param>
         /// <remarks>
         /// The <paramref name="start"/> gets incremented by the size of the value
         /// </remarks>
+        /// </summary>
         public uint ReadUInt32(ref int start)
         {
             Span<byte> bytes = stackalloc byte[sizeof(uint)];
@@ -79,7 +80,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             return _littleEndian ? BinaryPrimitives.ReadUInt32LittleEndian(bytes) : BinaryPrimitives.ReadUInt32BigEndian(bytes);
         }
 
-        // <summary>
+        /// <summary>
         /// Extracts an unsigned 16bit value from the image byte array
         /// </summary>
         /// <param name="start">Starting index of the value</param>

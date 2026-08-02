@@ -1,3 +1,5 @@
+using AsmResolver.PE.DotNet.ReadyToRun.Enumerations;
+using AsmResolver.PE.File;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -82,7 +84,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
             List<ImportSectionEntry> entries,
             int auxDataRVA,
             int auxDataOffset,
-            Machine machine,
+            MachineType machine,
             ushort majorVersion)
         {
             Index = index;
