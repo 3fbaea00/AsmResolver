@@ -1,9 +1,9 @@
-﻿using System;
+using System;
 namespace AsmResolver.PE.DotNet.ReadyToRun.Enumerations
 {
     // https://github.com/dotnet/runtime/blob/main/src/coreclr/inc/readytorun.h
     [Flags]
-    public enum ReadyToRunFlags
+    public enum ReadyToRunAttributes
     {
         PlatformNeutralSource    = 0x00000001, // Set if the original IL assembly was platform-neutral
         SkipTypeValidation       = 0x00000002, // Runtime should trust that the metadata for the types defined in this module is correct
