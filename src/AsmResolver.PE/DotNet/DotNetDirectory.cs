@@ -161,7 +161,10 @@ namespace AsmResolver.PE.DotNet
             DataDirectory.CreateForSegment(CodeManagerTable).Write(writer);
             DataDirectory.CreateForSegment(VTableFixups).Write(writer);
             DataDirectory.CreateForSegment(ExportAddressTable).Write(writer);
-            DataDirectory.CreateForSegment(ManagedNativeHeader).Write(writer);
+
+            ManagedNativeHeader.WriteContents();
+            var managedNativeHeaderContent = ManagedNativeHeader.Contents;
+            DataDirectory.CreateForSegment(managedNativeHeaderContent).Write(writer);
         }
 
         /// <summary>

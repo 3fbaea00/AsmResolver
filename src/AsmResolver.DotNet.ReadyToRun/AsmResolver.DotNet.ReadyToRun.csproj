@@ -1,14 +1,20 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <Title>AsmResolver.DotNet.ReadyToRun</Title>
 	<Description>ReadyToRun support for the AsmResolver executable file inspection toolsuite.</Description>
 	<PackageTags>r2r rtr readyotorun exe pe assembly disassembly native-images directories resources dotnet cil inspection manipulation</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
+
+    <!-- Overrides Directory,Build.props because i am goysloppy lazy ass, maybe, i am not sure -->
+    <TargetFrameworks>net10.0</TargetFrameworks>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\AsmResolver.DotNet\AsmResolver.DotNet.csproj" />
+      
+    <!-- L9 -->
+    <PackageReference Remove="MonoMod.Backports" />
   </ItemGroup>
 
 </Project>

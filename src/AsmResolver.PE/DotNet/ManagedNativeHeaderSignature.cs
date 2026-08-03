@@ -13,6 +13,6 @@ namespace AsmResolver.PE.DotNet
         /// <summary>
         /// Indicates the managed native header is in the ReadyToRun (RTR) file format.
         /// </summary>
-        Rtr = 0x00525452
+        RTR = 0x00525452
     }
 }

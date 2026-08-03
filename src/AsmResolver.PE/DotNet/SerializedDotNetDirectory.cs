@@ -2,7 +2,6 @@ using System;
 using AsmResolver.IO;
 using AsmResolver.PE.DotNet.Metadata;
 using AsmResolver.PE.DotNet.Metadata.Tables;
-using AsmResolver.PE.DotNet.ReadyToRun;
 using AsmResolver.PE.DotNet.Resources;
 using AsmResolver.PE.DotNet.VTableFixups;
 using AsmResolver.PE.File;
@@ -166,18 +165,14 @@ namespace AsmResolver.PE.DotNet
             if (!_nativeHeaderDirectory.IsPresentInPE)
                 return null;
 
-            if (!_context.File.TryCreateDataDirectoryReader(_nativeHeaderDirectory, out var directoryReader))
+            if (!_context.File.TryCreateDataDirectoryReader(_nativeHeaderDirectory, out var reader))
             {
                 _context.BadImage(".NET data directory contains an invalid native header directory RVA and/or size.");
                 return null;
             }
 
-            var signature = (ManagedNativeHeaderSignature) directoryReader.Fork().ReadUInt32();
-            return signature switch
-            {   
-                ManagedNativeHeaderSignature.Rtr => new SerializedReadyToRunDirectory(_context, ref directoryReader),
-                _ => new CustomManagedNativeHeader(signature, directoryReader.ReadSegment(directoryReader.RemainingLength))
-            };
+            var signature = (ManagedNativeHeaderSignature) reader.Fork().ReadUInt32();
+            return new CustomManagedNativeHeader(_context.File, signature, reader.ReadSegment(reader.RemainingLength));
         }
     }
 }

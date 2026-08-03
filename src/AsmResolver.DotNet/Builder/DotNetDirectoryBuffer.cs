@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics.CodeAnalysis;
 using AsmResolver.DotNet.Builder.Metadata;
 using AsmResolver.DotNet.Builder.Resources;
@@ -42,6 +42,7 @@ namespace AsmResolver.DotNet.Builder
             ErrorListener = errorListener ?? throw new ArgumentNullException(nameof(errorListener));
             Resources = new DotNetResourcesDirectoryBuffer();
             VTableFixups = new VTableFixupsBuffer(Platform.GetOrGeneric(module.MachineType), symbolsProvider);
+            ManagedNativeHeader = module.DotNetDirectory.ManagedNativeHeader;
         }
 
         /// <summary>
@@ -110,6 +111,11 @@ namespace AsmResolver.DotNet.Builder
             get;
         }
 
+        public IManagedNativeHeader ManagedNativeHeader
+        {
+            get;
+        }
+
         private bool AssertIsInSameModule([NotNullWhen(true)] IModuleProvider? member, object? diagnosticSource)
         {
             if (member is null)
@@ -154,7 +160,8 @@ namespace AsmResolver.DotNet.Builder
                 EntryPoint = GetEntryPoint(),
                 Flags = Module.Attributes,
                 StrongName = StrongNameSize > 0 ? new DataSegment(new byte[StrongNameSize]) : null,
-                VTableFixups = VTableFixups.Directory.Count > 0 ? VTableFixups.Directory : null
+                VTableFixups = VTableFixups.Directory.Count > 0 ? VTableFixups.Directory : null,
+                ManagedNativeHeader = ManagedNativeHeader,
             };
 
             return new DotNetDirectoryBuildResult(directory, _tokenMapping);
