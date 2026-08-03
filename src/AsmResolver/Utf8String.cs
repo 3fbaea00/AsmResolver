@@ -56,7 +56,6 @@ namespace AsmResolver
         {
         }
 
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
         /// <summary>
         /// Creates a new UTF-8 string from the provided raw data.
         /// </summary>
@@ -66,6 +65,7 @@ namespace AsmResolver
             _data = data.ToArray();
         }
 
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
         /// <summary>
         /// Creates a new UTF-8 string from the provided <see cref="System.ReadOnlySpan{Char}"/>.
         /// </summary>

@@ -91,7 +91,7 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         /// Occurs when there is no section of the provided type present in the directory.
         /// </exception>
         public TSection GetSection<TSection>()
-            where TSection : class, IReadyToRunSection
+            where TSection : IReadyToRunSection
         {
             return TryGetSection<TSection>(out var section)
                 ? section
@@ -108,14 +108,14 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         {
             for (int i = 0; i < Sections.Count; i++)
             {
-                if (Sections[i].Type == type)
+                if (Sections[i].SectionType == type)
                 {
                     section = Sections[i];
                     return true;
                 }
             }
 
-            section = null;
+            section = default;
             return false;
         }
 
@@ -126,32 +126,29 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
         /// <param name="section">The section, or <c>null</c> if none was found.</param>
         /// <returns><c>true</c> if the section was found, <c>false</c> otherwise.</returns>
         public bool TryGetSection<TSection>([NotNullWhen(true)] out TSection? section)
-            where TSection : class, IReadyToRunSection
+            where TSection : IReadyToRunSection
         {
             for (int i = 0; i < Sections.Count; i++)
             {
-                if (Sections[i] is TSection s)
+                if (Sections[i] is TSection iteratedSection)
                 {
-                    section = s;
+                    section = iteratedSection;
                     return true;
                 }
             }
 
-            section = null;
+            section = default;
             return false;
         }
 
         /// <inheritdoc />
-        public override uint GetPhysicalSize()
-        {
-            return sizeof(ManagedNativeHeaderSignature) // Signature
-                   + sizeof(ushort) // MajorVersion
-                   + sizeof(ushort) // MinorVersion
-                   + sizeof(ReadyToRunAttributes) // Flags
-                   + sizeof(uint) // NumberOfSections
-                   + (uint)Sections.Count * (sizeof(ReadyToRunSectionType) + DataDirectory.DataDirectorySize) //Sections
-                ;
-        }
+        public override uint GetPhysicalSize() =>
+            /* Signature     */ sizeof(ManagedNativeHeaderSignature) +
+            /* MajorVersion  */ sizeof(ushort) +
+            /* MinorVersion  */ sizeof(ushort) +
+            /* Flags         */ sizeof(ReadyToRunAttributes) +
+            /* SectionsCount */ sizeof(uint) +
+            /* Sections      */ (uint)Sections.Count * (sizeof(ReadyToRunSectionType) + DataDirectory.DataDirectorySize);
 
         /// <inheritdoc />
         public override void Write(BinaryStreamWriter writer)
@@ -164,9 +161,10 @@ namespace AsmResolver.PE.DotNet.ReadyToRun
 
             foreach (var section in Sections)
             {
-                writer.WriteUInt32((uint)section.Type);
+                writer.WriteUInt32((uint)section.SectionType);
                 writer.WriteUInt32(section.Rva);
-                writer.WriteUInt32(section.GetPhysicalSize());
+                writer.WriteUInt32(section.Size);
             }
         }
     }
+}

@@ -174,7 +174,7 @@ namespace AsmResolver.PE.DotNet
 
             var signature = (ManagedNativeHeaderSignature) directoryReader.Fork().ReadUInt32();
             return signature switch
-            {
+            {   
                 ManagedNativeHeaderSignature.Rtr => new SerializedReadyToRunDirectory(_context, ref directoryReader),
                 _ => new CustomManagedNativeHeader(signature, directoryReader.ReadSegment(directoryReader.RemainingLength))
             };
