@@ -9,8 +9,6 @@ namespace AsmResolver.IO
     {
         private readonly byte[] _data;
 
-        public byte[] DELETEIT_DATA => _data;
-
         /// <summary>
         /// Creates a new instance of the <see cref="ByteArrayDataSource"/> class.
         /// </summary>

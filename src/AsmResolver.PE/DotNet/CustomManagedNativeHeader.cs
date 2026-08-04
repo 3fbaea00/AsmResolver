@@ -1,3 +1,4 @@
+using AsmResolver.IO;
 using AsmResolver.PE.File;
 
 namespace AsmResolver.PE.DotNet
@@ -36,6 +37,18 @@ namespace AsmResolver.PE.DotNet
             get;
         }
 
-        public void WriteContents() { }
+        public bool CanUpdateOffsets => Contents.CanUpdateOffsets;
+
+        public ulong Offset => Contents.Offset;
+
+        public uint Rva => Contents.Rva;
+
+        public uint GetPhysicalSize() => Contents.GetPhysicalSize();
+
+        public uint GetVirtualSize() => Contents.GetVirtualSize();
+
+        public void UpdateOffsets(in RelocationParameters parameters) => Contents.UpdateOffsets(in parameters);
+
+        public void Write(BinaryStreamWriter writer) => Contents.Write(writer);
     }
 }

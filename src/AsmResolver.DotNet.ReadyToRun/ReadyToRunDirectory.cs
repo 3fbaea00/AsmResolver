@@ -1,11 +1,12 @@
 using AsmResolver.DotNet.ReadyToRun.Enumerations;
+using AsmResolver.DotNet.ReadyToRun.Internal;
+using AsmResolver.DotNet.ReadyToRun.Internal.Extensions;
 using AsmResolver.DotNet.ReadyToRun.Sections;
 using AsmResolver.IO;
 using AsmResolver.PE.DotNet;
 using AsmResolver.PE.File;
 using System;
-using System.Collections.Specialized;
-using System.IO;
+using System.Diagnostics.Tracing;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -46,11 +47,34 @@ namespace AsmResolver.DotNet.ReadyToRun
         [FieldOffset(0xC0)] private ulong externalTypeMapsSection;
         [FieldOffset(0xC8)] private ulong proxyTypeMapsSection;
         [FieldOffset(0xD0)] private ulong typeMapAssemblyTargetsSection;
-        [FieldOffset(0xD8)] private BitVector32 stateOfSections;
-        [FieldOffset(0xE0)] private ISegment contents;
-        [FieldOffset(0xE8)] private uint majorVersion;
-        [FieldOffset(0xF0)] private uint minorVersion;
-        [FieldOffset(0xF8)] private ReadyToRunAttributes attributes;
+
+        [FieldOffset(0xD8)] private InternalNoGCPointersBody internalBody;
+
+        private ReadyToRunDirectory() 
+        {
+
+        }
+
+        public ReadyToRunDirectory(ReadyToRunAttributes attributes)
+        {
+            internalBody.majorVersion = 16;
+            internalBody.attributes = attributes;
+        }
+
+        public ReadyToRunDirectory(ulong majorVersion, ulong minorVersion, ReadyToRunAttributes attributes)
+        {
+            Unsafe.As<ushort, uint>(ref internalBody.majorVersion) = (uint)majorVersion | (uint)minorVersion;
+            internalBody.attributes = attributes;
+        }
+
+        /// <inheritdoc />
+        public ManagedNativeHeaderSignature Signature => ManagedNativeHeaderSignature.RTR;
+
+        public bool CanUpdateOffsets => true;
+
+        public ulong Offset => internalBody.offset;
+
+        public uint Rva => internalBody.rva;
 
         public CompilerIdentifierSection CompilerIdentifierSection => compilerIdentifierSection;
         public ulong ImportSectionsSection => importSectionsSection;
@@ -78,12 +102,19 @@ namespace AsmResolver.DotNet.ReadyToRun
         public ulong ProxyTypeMapsSection => proxyTypeMapsSection;
         public ulong TypeMapAssemblyTargetsSection => typeMapAssemblyTargetsSection;
 
-        /// <inheritdoc />
-        public ManagedNativeHeaderSignature Signature => ManagedNativeHeaderSignature.RTR;
+        public ushort MajorVersion
+        {
+            get => internalBody.majorVersion;
+            set => internalBody.majorVersion = value;
+        }
 
-        public ISegment Contents => contents;
+        public ushort MinorVersion
+        {
+            get => internalBody.minorVersion;
+            set => internalBody.minorVersion = value;
+        }
 
-        public uint SectionCount => Popcnt.PopCount((uint)stateOfSections.Data);
+        public uint SectionCount => Popcnt.PopCount(internalBody.stateOfSections);
 
         public void SetSection<TSection>(TSection section)
             where TSection : IReadyToRunSection
@@ -91,7 +122,158 @@ namespace AsmResolver.DotNet.ReadyToRun
             var index = (int)(TSection.SectionType - 100);
             Unsafe.As<CompilerIdentifierSection, TSection>(ref Unsafe.Add(ref compilerIdentifierSection, index)) = section;
 
-            stateOfSections[index] = section is not null;
+            internalBody.stateOfSections = (internalBody.stateOfSections & ~(1u << index)) | (section is not null ? 1u : 0u) << index;
+        }
+
+        public uint GetVirtualSize() => GetPhysicalSize();
+
+        public void UpdateOffsets(in RelocationParameters parameters)
+        {
+            internalBody.rva = parameters.Rva;
+            internalBody.offset = parameters.Offset;
+        }
+
+        public uint GetPhysicalSize()
+        {
+            if (internalBody.lastCalculatedSize != 0)
+                return internalBody.lastCalculatedSize;
+
+            var stateOfSections = (ulong)internalBody.stateOfSections;
+            var sectionCount = Popcnt.PopCount((uint)stateOfSections);
+            var size = HeaderSize + sectionCount * SectionHeaderSize;
+            var sectionIndex = 0;
+            while (stateOfSections != 0)
+            {
+                var relativeSectionIndex = BitOperations.TrailingZeroCount(stateOfSections);
+                sectionIndex += relativeSectionIndex++;
+                stateOfSections >>= relativeSectionIndex;
+                var section = Unsafe.As<CompilerIdentifierSection, IReadyToRunAbstractSection>(ref Unsafe.Add(ref compilerIdentifierSection, sectionIndex));
+                var sectionSize = (uint)section.CalculateContentSize();
+
+                internalBody.sectionSizes[sectionIndex] = sectionSize;
+                size += sectionSize;
+            }
+
+            internalBody.lastCalculatedSize = size;
+            return size;
+        }
+
+        public void Write(BinaryStreamWriter streamWriter)
+        {
+            var rva = internalBody.rva;
+            var byteArray = new byte[GetPhysicalSize()];
+            fixed (byte* bytes = byteArray)
+            {
+                var stateOfSections = (ulong)internalBody.stateOfSections;
+                var sectionCount = Popcnt.PopCount((uint)stateOfSections);
+
+                *(ulong*)bytes = ((ulong)internalBody.minorVersion << 16 | internalBody.majorVersion) << 32 | (uint)ManagedNativeHeaderSignature.RTR;
+                *(ulong*)(bytes + 8) = (ulong)sectionCount << 32 | (uint)internalBody.attributes;
+
+                var sectionIndex = 0;
+                var sectionHeaderOffset = HeaderSize;
+                var sectionContentOffset = HeaderSize + sectionCount * SectionHeaderSize;
+                while (stateOfSections != 0)
+                {
+                    var relativeSectionIndex = BitOperations.TrailingZeroCount(stateOfSections);
+                    sectionIndex += relativeSectionIndex++;
+                    stateOfSections >>= relativeSectionIndex;
+                    var section = Unsafe.As<CompilerIdentifierSection, IReadyToRunAbstractSection>(ref Unsafe.Add(ref compilerIdentifierSection, sectionIndex));
+                    var sectionSize = internalBody.sectionSizes[sectionIndex];
+                    var sectionRva = rva + sectionContentOffset;
+                    var sectionType = (uint)ReadyToRunSectionType.CompilerIdentifier + (uint)sectionIndex;
+                    *(ulong*)(bytes + sectionHeaderOffset) = (ulong)sectionRva << 32 | sectionType;
+                    *(uint*)(bytes + sectionHeaderOffset + /* Type */ sizeof(uint) + /* Rva */ sizeof(uint)) = sectionSize;
+
+                    sectionHeaderOffset += SectionHeaderSize;
+
+                    var sectionData = bytes + sectionContentOffset;
+                    var writer = new SectionWriter(sectionData);
+                    section.WriteContent(writer, sectionRva);
+                }
+            }
+
+            streamWriter.WriteBytes(byteArray);
+        }
+
+        public static ReadyToRunDirectory FromCustomManagedNativeHeader(CustomManagedNativeHeader header)
+        {
+            var file = header.File;
+            var contentsSegment = header.Contents;
+            var offset = 0ul;
+            var contentsBytes = contentsSegment.GetDataNoChecks(ref offset);
+            var length = (ulong)contentsBytes.Length - offset;
+
+            fixed (byte* contents = contentsBytes)
+            {
+                var directory = new ReadyToRunDirectory();
+
+                if (length < HeaderSize)
+                    throw new InvalidOperationException();
+
+                Unsafe.As<ushort, ulong>(ref directory.internalBody.majorVersion) = *(ulong*)(contents + offset +
+                    /* Signature */ sizeof(ManagedNativeHeaderSignature)
+                );
+
+                var numOfSections = *(uint*)(contents + offset +
+                    /* Signature    */ sizeof(ManagedNativeHeaderSignature) +
+                    /* MajorVersion */ sizeof(ushort) +
+                    /* MinorVersion */ sizeof(ushort) +
+                    /* Flags        */ sizeof(ReadyToRunAttributes)
+                );
+
+                var expectedSize = HeaderSize + numOfSections * SectionHeaderSize;
+                if (length < expectedSize)
+                    throw new InvalidOperationException();
+
+                offset += HeaderSize;                
+                var numOfLeftSections = numOfSections;
+                var stateOfSections = 0u;
+                PESection peSection = null;
+                byte[] peSectionBytes = null;
+                while (numOfLeftSections != 0)
+                {
+                    numOfLeftSections--;
+
+                    var sectionType = *(ReadyToRunSectionType*)(contents + offset);
+                    var rva = *(uint*)(contents + offset + sizeof(ReadyToRunSectionType));
+                    var size = *(uint*)(contents + offset + sizeof(ReadyToRunSectionType) + sizeof(uint));
+                    offset += sizeof(ReadyToRunSectionType) + sizeof(uint) + sizeof(uint);
+
+                    if (peSection is null || !peSection.ContainsRva(rva))
+                    {
+                        peSection = file.GetSectionContainingRva(rva);
+                        var peSectionOffset = 0ul;
+                        peSectionBytes = peSection.Contents.GetData(ref peSectionOffset, rva, size);
+                    }
+
+                    fixed (byte* peSectionData = peSectionBytes)
+                    {
+                        var fileOffset = peSection.RvaToFileOffset(rva);
+                        var sectionData = peSectionData + fileOffset;
+
+                       if (sectionType is not ReadyToRunSectionType.CompilerIdentifier)
+                            continue;
+
+                        var section = sectionType switch
+                        {
+                            ReadyToRunSectionType.CompilerIdentifier => new CompilerIdentifierSection(),
+                            _ => throw new NotImplementedException()
+                        };
+
+                        var sectionReader = new SectionReader(sectionData);
+                        section.ReadContent(sectionReader, size);
+
+                        var index = (int)(sectionType - 100);
+                        Unsafe.As<CompilerIdentifierSection, IReadyToRunAbstractSection>(ref Unsafe.Add(ref directory.compilerIdentifierSection, index)) = section;
+                        stateOfSections |= 1u << index;
+                    }
+                }
+
+                directory.internalBody.stateOfSections = stateOfSections;
+
+                return directory;
+            }
         }
 
         private const uint HeaderSize =
@@ -119,96 +301,18 @@ namespace AsmResolver.DotNet.ReadyToRun
 
         private const uint SectionMaxCount = ReadyToRunSectionType.TypeMapAssemblyTargets - ReadyToRunSectionType.CompilerIdentifier;
 
-        public void WriteContents()
+        // Bypasses clr's memory layout restrictions. absurd.
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
+        private struct InternalNoGCPointersBody
         {
-            contents = new SegmentBuilder();
-            var sectionsHeader = new SegmentBuilder();
-            var sectionsContent = new SegmentBuilder();
-            var stateOfSections = (ulong)this.stateOfSections.Data;
-            var sectionCount = Popcnt.PopCount((uint)stateOfSections);
-            var sectionIndex = 0;
-            while (stateOfSections != 0)
-            {
-                var relativeSectionIndex = BitOperations.TrailingZeroCount(stateOfSections);
-                relativeSectionIndex++;
-                sectionIndex += relativeSectionIndex;
-                stateOfSections >>= relativeSectionIndex;
-                var section = Unsafe.As<CompilerIdentifierSection, IReadyToRunAbstractSection>(ref Unsafe.Add(ref compilerIdentifierSection, sectionIndex));
-                var sectionSize = section.CalculateContentSize();
-                var sectionContent = new SegmentBuilder();
-                var sectionContentReference = sectionContent.ToReference();
-                section.WriteContent(sectionContent);
-
-                var sectionHeader = new SegmentBuilder();
-                var rvaPointer = new RelativeReference(sectionContentReference, 0);
-                var a = ;
-                sectionHeader.Add(rvaPointer);
-
-            }
-        }
-
-        public static ReadyToRunDirectory FromCustomManagedNativeHeader(CustomManagedNativeHeader header)
-        {
-            var file = header.File;
-            var contentsSegment = header.Contents;
-            var contentsBytes = contentsSegment.WriteIntoArray();
-            var length = (ulong)contentsBytes.Length;
-
-            fixed (byte* contents = contentsBytes)
-            {
-                var directory = new ReadyToRunDirectory();
-
-                if (length < HeaderSize)
-                    throw new InvalidOperationException();
-
-                Unsafe.CopyBlock(
-                    Unsafe.AsPointer(ref directory.majorVersion),
-                    contents + UsefulHeaderOffset,
-                    UsefulHeaderSize
-                );
-
-                var numOfSections = *(uint*)(contents + SectionCountOffset);
-                if (length < HeaderSize + numOfSections * SectionHeaderSize)
-                    throw new InvalidOperationException();
-
-                var offset = HeaderSize;
-                var numOfLeftSections = numOfSections;
-                var stateOfSections = new BitVector32();
-                while (numOfLeftSections != 0)
-                {
-                    numOfLeftSections--;
-
-                    var sectionType = *(ReadyToRunSectionType*)(contents + offset);
-                    var rva = *(uint*)(contents + offset + sizeof(ReadyToRunSectionType));
-                    var size = *(uint*)(contents + offset + sizeof(ReadyToRunSectionType) + sizeof(uint));
-                    offset += sizeof(ReadyToRunSectionType) + sizeof(uint) + sizeof(uint);
-
-                    var sectionStreamReader = file.CreateReaderAtRva(rva);
-                    if (sectionStreamReader.Length < size)
-                        throw new InvalidOperationException();
-
-                    var sectionBytes = sectionStreamReader.ReadBytes((int)size);
-                    fixed (byte* sectionData = sectionBytes)
-                    {
-                        var section = sectionType switch
-                        {
-                            ReadyToRunSectionType.CompilerIdentifier => new CompilerIdentifierSection(),
-                            _ => throw new NotImplementedException()
-                        };
-
-                        var sectionReader = new SectionReader(sectionData);
-                        section.ReadContent(sectionReader, size);
-
-                        var index = (int)(sectionType - 100);
-                        Unsafe.As<CompilerIdentifierSection, IReadyToRunAbstractSection>(ref Unsafe.Add(ref directory.compilerIdentifierSection, index)) = section;
-                        stateOfSections[index] = true;
-                    }
-                }
-
-                directory.stateOfSections = stateOfSections;
-
-                return directory;
-            }
+            public uint stateOfSections;
+            public ushort majorVersion;
+            public ushort minorVersion;
+            public ReadyToRunAttributes attributes;
+            public uint lastCalculatedSize;
+            public uint rva;
+            public ulong offset;
+            public fixed uint sectionSizes[(int)SectionMaxCount];
         }
     }
 }

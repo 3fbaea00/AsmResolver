@@ -1,4 +1,5 @@
 #pragma warning disable CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
+using AsmResolver.DotNet.ReadyToRun.Internal;
 using System;
 using System.Runtime.CompilerServices;
 
@@ -21,24 +22,24 @@ namespace AsmResolver.DotNet.ReadyToRun
 
         public void WriteBytes(Span<byte> span)
         {
-            var writer = (PublicSpan<byte>*)&span;
+            var writer = (PublicSpan*)&span;
             WriteBytes(writer->Pointer, writer->Length);
         }
 
         public void WriteBytes(ReadOnlySpan<byte> span)
         {
-            var writer = (PublicSpan<byte>*)&span;
+            var writer = (PublicSpan*)&span;
             WriteBytes(writer->Pointer, writer->Length);
         }
 
         public void WriteBytes(void* pointer, ulong length)
         {
-            Unsafe.CopyBlock(ref Unsafe.AsRef<byte>(pointer), ref Unsafe.AsRef<byte>(Pointer), (uint)length);
+            Unsafe.CopyBlock(ref Unsafe.AsRef<byte>(Pointer), ref Unsafe.AsRef<byte>(pointer), (uint)length);
         }
 
         public void WriteBytes(ref byte reference, ulong length)
         {
-            Unsafe.CopyBlock(ref reference, ref Unsafe.AsRef<byte>(Pointer), (uint)length);
+            Unsafe.CopyBlock(ref Unsafe.AsRef<byte>(Pointer), ref reference, (uint)length);
         }
 
         public void WriteBytes(byte[] bytes, ulong offset)
@@ -48,13 +49,13 @@ namespace AsmResolver.DotNet.ReadyToRun
 
         public void WriteBytes(Span<byte> span, ulong offset)
         {
-            var writer = (PublicSpan<byte>*)&span;
+            var writer = (PublicSpan*)&span;
             WriteBytes(writer->Pointer, writer->Length, offset);
         }
 
         public void WriteBytes(ReadOnlySpan<byte> span, ulong offset)
         {
-            var writer = (PublicSpan<byte>*)&span;
+            var writer = (PublicSpan*)&span;
             WriteBytes(writer->Pointer, writer->Length, offset);
         }
 

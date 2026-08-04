@@ -1,6 +1,7 @@
 #pragma warning disable CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
 
 using AsmResolver.DotNet.ReadyToRun.Enumerations;
+using AsmResolver.DotNet.ReadyToRun.Internal;
 using System;
 
 namespace AsmResolver.DotNet.ReadyToRun.Sections
@@ -14,32 +15,20 @@ namespace AsmResolver.DotNet.ReadyToRun.Sections
         public void ReadContent(SectionReader reader, uint contentSize)
         {
             var lenght = contentSize - 1;
-            var span = new PublicSpan<byte>()
+            var span = new PublicSpan()
             {
-                Pointer = (byte*)reader.Pointer,
+                Pointer = reader.Pointer,
                 Length = lenght,
             };
             Identifier = new Utf8String(*(ReadOnlySpan<byte>*)&span);
         }
 
-        public ulong CalculateContentSize() => (ulong)Identifier.ByteCount;
+        public ulong CalculateContentSize() => (ulong)Identifier.ByteCount + 1;
 
-        // maybe optimize for flat sections without references
-        public void WriteContent(SegmentBuilder segmentBuilder)
+        public void WriteContent(SectionWriter writer, uint rva)
         {
             var identifierSpan = Identifier.AsSpan();
-            var length = identifierSpan.Length + 1;
-
-            var byteArray = new byte[length];
-            fixed (byte* bytes = byteArray)
-            {
-                var writer = new SectionWriter(bytes);
-                writer.WriteBytes(identifierSpan);
-                writer.WriteByte(0, (ulong)identifierSpan.Length);
-            }
-
-            var identifierSegment = new DataSegment(byteArray);
-            segmentBuilder.Add(identifierSegment);
+            writer.WriteBytes(identifierSpan);
         }
     }
 }

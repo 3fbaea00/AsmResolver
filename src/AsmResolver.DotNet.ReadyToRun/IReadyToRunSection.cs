@@ -8,7 +8,7 @@ namespace AsmResolver.DotNet.ReadyToRun
 
         ulong CalculateContentSize();
 
-        void WriteContent(SegmentBuilder segmentBuilder);
+        void WriteContent(SectionWriter writer, uint rva);
     }
 
     public interface IReadyToRunSection : IReadyToRunAbstractSection
