@@ -8,5 +8,7 @@ namespace AsmResolver.DotNet.ReadyToRun
         }
 
         public void* Pointer;
+
+        public ulong ReadUInt64(ulong offset) => *(ulong*)((byte*)Pointer + offset);
     }
 }

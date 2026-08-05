@@ -6,15 +6,15 @@ using System;
 
 namespace AsmResolver.DotNet.ReadyToRun.Sections
 {
-    public unsafe class CompilerIdentifierSection : IReadyToRunSection
+    public unsafe class CompilerIdentifierSection : IReadyToRunImageSection
     {
         public static ReadyToRunSectionType SectionType => ReadyToRunSectionType.CompilerIdentifier;
 
         public Utf8String Identifier;
 
-        public void ReadContent(SectionReader reader, uint contentSize)
+        public void ReadSection(ReadyToRunDirectory directory, SectionReader reader, uint sectionSize)
         {
-            var lenght = contentSize - 1;
+            var lenght = sectionSize - 1;
             var span = new PublicSpan()
             {
                 Pointer = reader.Pointer,
@@ -23,9 +23,9 @@ namespace AsmResolver.DotNet.ReadyToRun.Sections
             Identifier = new Utf8String(*(ReadOnlySpan<byte>*)&span);
         }
 
-        public ulong CalculateContentSize() => (ulong)Identifier.ByteCount + 1;
+        public ulong GetSectionSize() => (ulong)Identifier.ByteCount + 1;
 
-        public void WriteContent(SectionWriter writer, uint rva)
+        public void WriteSection(ReadyToRunDirectory directory, SectionWriter writer, uint rva)
         {
             var identifierSpan = Identifier.AsSpan();
             writer.WriteBytes(identifierSpan);

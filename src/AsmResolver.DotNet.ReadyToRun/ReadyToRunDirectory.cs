@@ -2,6 +2,7 @@ using AsmResolver.DotNet.ReadyToRun.Enumerations;
 using AsmResolver.DotNet.ReadyToRun.Internal;
 using AsmResolver.DotNet.ReadyToRun.Internal.Extensions;
 using AsmResolver.DotNet.ReadyToRun.Sections;
+using AsmResolver.DotNet.ReadyToRun.Sections.ImportSections;
 using AsmResolver.IO;
 using AsmResolver.PE.DotNet;
 using AsmResolver.PE.File;
@@ -17,11 +18,12 @@ namespace AsmResolver.DotNet.ReadyToRun
     /// <summary>
     /// Represents a managed native header of a .NET portable executable file that is in the ReadyToRun format.
     /// </summary>
+    // no support for per assembly sectoisn yet!
     [StructLayout(LayoutKind.Explicit)]
     public unsafe class ReadyToRunDirectory : IManagedNativeHeader
     {
         [FieldOffset(0x00)] private CompilerIdentifierSection compilerIdentifierSection;
-        [FieldOffset(0x08)] private ulong importSectionsSection;
+        [FieldOffset(0x08)] private ImportSectionsSection importSectionsSection;
         [FieldOffset(0x10)] private ulong runtimeFunctionsSection;
         [FieldOffset(0x18)] private ulong methodDefEntryPointsSection;
         [FieldOffset(0x20)] private ulong exceptionInfoSection;
@@ -50,7 +52,7 @@ namespace AsmResolver.DotNet.ReadyToRun
 
         [FieldOffset(0xD8)] private InternalNoGCPointersBody internalBody;
 
-        private ReadyToRunDirectory() 
+        private ReadyToRunDirectory()
         {
 
         }
@@ -77,7 +79,7 @@ namespace AsmResolver.DotNet.ReadyToRun
         public uint Rva => internalBody.rva;
 
         public CompilerIdentifierSection CompilerIdentifierSection => compilerIdentifierSection;
-        public ulong ImportSectionsSection => importSectionsSection;
+        public ImportSectionsSection ImportSectionsSection => importSectionsSection;
         public ulong RuntimeFunctionsSection => runtimeFunctionsSection;
         public ulong MethodDefEntryPointsSection => methodDefEntryPointsSection;
         public ulong ExceptionInfoSection => exceptionInfoSection;
@@ -148,7 +150,7 @@ namespace AsmResolver.DotNet.ReadyToRun
                 sectionIndex += relativeSectionIndex++;
                 stateOfSections >>= relativeSectionIndex;
                 var section = Unsafe.As<CompilerIdentifierSection, IReadyToRunAbstractSection>(ref Unsafe.Add(ref compilerIdentifierSection, sectionIndex));
-                var sectionSize = (uint)section.CalculateContentSize();
+                var sectionSize = (uint)section.GetSectionSize();
 
                 internalBody.sectionSizes[sectionIndex] = sectionSize;
                 size += sectionSize;
@@ -189,7 +191,7 @@ namespace AsmResolver.DotNet.ReadyToRun
 
                     var sectionData = bytes + sectionContentOffset;
                     var writer = new SectionWriter(sectionData);
-                    section.WriteContent(writer, sectionRva);
+                    section.WriteSection(this, writer, sectionRva);
                 }
             }
 
@@ -203,14 +205,15 @@ namespace AsmResolver.DotNet.ReadyToRun
             var offset = 0ul;
             var contentsBytes = contentsSegment.GetDataNoChecks(ref offset);
             var length = (ulong)contentsBytes.Length - offset;
+            var stateOfSections = 0u;
+
+            var directory = new ReadyToRunDirectory();
+
+            if (length < HeaderSize)
+                throw new InvalidOperationException();
 
             fixed (byte* contents = contentsBytes)
             {
-                var directory = new ReadyToRunDirectory();
-
-                if (length < HeaderSize)
-                    throw new InvalidOperationException();
-
                 Unsafe.As<ushort, ulong>(ref directory.internalBody.majorVersion) = *(ulong*)(contents + offset +
                     /* Signature */ sizeof(ManagedNativeHeaderSignature)
                 );
@@ -228,7 +231,6 @@ namespace AsmResolver.DotNet.ReadyToRun
 
                 offset += HeaderSize;                
                 var numOfLeftSections = numOfSections;
-                var stateOfSections = 0u;
                 PESection peSection = null;
                 byte[] peSectionBytes = null;
                 while (numOfLeftSections != 0)
@@ -252,28 +254,34 @@ namespace AsmResolver.DotNet.ReadyToRun
                         var fileOffset = peSection.RvaToFileOffset(rva);
                         var sectionData = peSectionData + fileOffset;
 
-                       if (sectionType is not ReadyToRunSectionType.CompilerIdentifier)
-                            continue;
-
-                        var section = sectionType switch
+                        IReadyToRunSection section;
+                        switch (sectionType)
                         {
-                            ReadyToRunSectionType.CompilerIdentifier => new CompilerIdentifierSection(),
-                            _ => throw new NotImplementedException()
-                        };
+                            case ReadyToRunSectionType.CompilerIdentifier:
+                                section = new CompilerIdentifierSection();
+                                break;
+                            case ReadyToRunSectionType.ImportSections:
+                                section = new ImportSectionsSection();
+                                break;
+                            default:
+                                continue;
+                        }
 
                         var sectionReader = new SectionReader(sectionData);
-                        section.ReadContent(sectionReader, size);
+                        section.ReadSection(directory, sectionReader, size);
 
                         var index = (int)(sectionType - 100);
                         Unsafe.As<CompilerIdentifierSection, IReadyToRunAbstractSection>(ref Unsafe.Add(ref directory.compilerIdentifierSection, index)) = section;
                         stateOfSections |= 1u << index;
                     }
                 }
-
-                directory.internalBody.stateOfSections = stateOfSections;
-
-                return directory;
             }
+
+            directory.internalBody.stateOfSections = stateOfSections;
+
+            // other stages
+
+            return directory;
         }
 
         private const uint HeaderSize =
@@ -299,7 +307,7 @@ namespace AsmResolver.DotNet.ReadyToRun
 
         private const uint SectionHeaderSize = sizeof(ReadyToRunSectionType) + DataDirectory.DataDirectorySize;
 
-        private const uint SectionMaxCount = ReadyToRunSectionType.TypeMapAssemblyTargets - ReadyToRunSectionType.CompilerIdentifier;
+        private const uint SectionTypeMaxCount = ReadyToRunSectionType.TypeMapAssemblyTargets - ReadyToRunSectionType.CompilerIdentifier;
 
         // Bypasses clr's memory layout restrictions. absurd.
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -312,7 +320,7 @@ namespace AsmResolver.DotNet.ReadyToRun
             public uint lastCalculatedSize;
             public uint rva;
             public ulong offset;
-            public fixed uint sectionSizes[(int)SectionMaxCount];
+            public fixed uint sectionSizes[(int)SectionTypeMaxCount];
         }
     }
 }

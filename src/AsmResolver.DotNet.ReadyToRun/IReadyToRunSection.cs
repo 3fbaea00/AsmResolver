@@ -4,11 +4,13 @@ namespace AsmResolver.DotNet.ReadyToRun
 {
     public interface IReadyToRunAbstractSection
     {
-        void ReadContent(SectionReader reader, uint contentSize);
+        ulong GetSectionSize();
 
-        ulong CalculateContentSize();
+        void ReadSection(ReadyToRunDirectory directory, SectionReader reader, uint sectionSize);
 
-        void WriteContent(SectionWriter writer, uint rva);
+        void WriteSection(ReadyToRunDirectory directory, SectionWriter writer, uint rva);
+
+        virtual void PostInitialization(ReadyToRunDirectory directory) { }
     }
 
     public interface IReadyToRunSection : IReadyToRunAbstractSection
@@ -16,6 +18,17 @@ namespace AsmResolver.DotNet.ReadyToRun
         public static abstract ReadyToRunSectionType SectionType
         {
             get;
+        }
+    }
+
+    public interface IReadyToRunImageSection : IReadyToRunSection;
+
+    public interface IReadyToRunAssemblySection : IReadyToRunSection
+    {
+        AssemblyDescriptor TargetAssembly
+        {
+            get; 
+            init;
         }
     }
 }
