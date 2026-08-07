@@ -1,14 +1,16 @@
+using System.Runtime.CompilerServices;
+
 namespace AsmResolver.DotNet.ReadyToRun
 {
-    public unsafe struct SectionReader
+    public unsafe ref struct SectionReader
     {
-        public SectionReader(void* pointer)
+        public SectionReader(ref byte reference)
         {
-            Pointer = pointer;
+            Reference = ref reference;
         }
 
-        public void* Pointer;
+        public ref byte Reference;
 
-        public ulong ReadUInt64(ulong offset) => *(ulong*)((byte*)Pointer + offset);
+        public byte* Pointer => (byte*)Unsafe.AsPointer(ref Reference);
     }
 }

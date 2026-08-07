@@ -2,33 +2,35 @@
 
 using AsmResolver.DotNet.ReadyToRun.Enumerations;
 using AsmResolver.DotNet.ReadyToRun.Internal;
+using AsmResolver.DotNet.ReadyToRun.Reader;
 using System;
+using System.Reflection.PortableExecutable;
+using System.Runtime.CompilerServices;
 
 namespace AsmResolver.DotNet.ReadyToRun.Sections
 {
-    public unsafe class CompilerIdentifierSection : IReadyToRunImageSection
+    public class CompilerIdentifierSection : IReadyToRunImageSection
     {
         public static ReadyToRunSectionType SectionType => ReadyToRunSectionType.CompilerIdentifier;
 
         public Utf8String Identifier;
 
-        public void ReadSection(ReadyToRunDirectory directory, SectionReader reader, uint sectionSize)
-        {
-            var lenght = sectionSize - 1;
-            var span = new PublicSpan()
-            {
-                Pointer = reader.Pointer,
-                Length = lenght,
-            };
-            Identifier = new Utf8String(*(ReadOnlySpan<byte>*)&span);
-        }
-
         public ulong GetSectionSize() => (ulong)Identifier.ByteCount + 1;
 
-        public void WriteSection(ReadyToRunDirectory directory, SectionWriter writer, uint rva)
+        public void ReadSection(ReadyToRunDirectoryReader directoryReader, ref byte source, uint sourceSize)
         {
-            var identifierSpan = Identifier.AsSpan();
-            writer.WriteBytes(identifierSpan);
+            var lenght = sourceSize - 1;
+            var span = new OpenSpan<byte>()
+            {
+                Reference = ref source,
+                Length = lenght,
+            };
+            Identifier = new Utf8String(Unsafe.As<OpenSpan<byte>, ReadOnlySpan<byte>>(ref span));
+        }
+
+        public void WriteSection(ReadyToRunDirectory directory, ref byte destination, uint rva)
+        {
+            Identifier.AsSpan().CopyTo(new Span<byte>(ref destination));
         }
     }
 }

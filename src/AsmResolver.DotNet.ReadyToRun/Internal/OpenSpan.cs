@@ -1,8 +1,8 @@
 namespace AsmResolver.DotNet.ReadyToRun.Internal
 {
-    internal unsafe ref struct PublicSpan
+    internal ref struct OpenSpan<T>
     {
-        public void* Pointer;
+        public ref T Reference;
         public ulong Length;
     }
 }

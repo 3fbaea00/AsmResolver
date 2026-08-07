@@ -20,6 +20,9 @@ namespace AsmResolver.DotNet.ReadyToRun.Enumerations
 
     public static class SupportedMachineTypeExtensions
     {
+        public static uint GetNativeIntegerSize(this SupportedMachineType self)
+            => self is SupportedMachineType.I386 ? 4u : 8u;
+
         public static MachineType ToAllMachineType(this SupportedMachineType self)
             => self switch
             {

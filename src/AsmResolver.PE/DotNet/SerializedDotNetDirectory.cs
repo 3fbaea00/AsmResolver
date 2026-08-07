@@ -172,7 +172,7 @@ namespace AsmResolver.PE.DotNet
             }
 
             var signature = (ManagedNativeHeaderSignature) reader.Fork().ReadUInt32();
-            return new CustomManagedNativeHeader(_context.File, signature, reader.ReadSegment(reader.RemainingLength));
+            return new CustomManagedNativeHeader(_context, signature, reader.ReadSegment(reader.RemainingLength));
         }
     }
 }

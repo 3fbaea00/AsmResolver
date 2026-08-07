@@ -7,7 +7,7 @@ namespace AsmResolver.DotNet.ReadyToRun.Enumerations
     /// is a list of exception handling clauses.  There are two formats, fat or small
     /// </summary>
     [Flags]
-    public enum CorILExceptionClause
+    public enum CorILExceptionClause : ushort
     {
         None,                          // This is a typed handler
         OffSetLen = 0x0000,            // Deprecated

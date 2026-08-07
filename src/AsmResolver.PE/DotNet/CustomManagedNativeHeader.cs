@@ -13,11 +13,17 @@ namespace AsmResolver.PE.DotNet
         /// </summary>
         /// <param name="signature">The signature to use.</param>
         /// <param name="contents">The contents of the header, excluding the signature.</param>
-        public CustomManagedNativeHeader(PEFile file, ManagedNativeHeaderSignature signature, ISegment contents)
+        public CustomManagedNativeHeader(PEReaderContext readerContext, ManagedNativeHeaderSignature signature, ISegment contents)
         {
-            File = file;
+            ReaderContext = readerContext;
+            File = readerContext.File;
             Signature = signature;
             Contents = contents;
+        }
+
+        public PEReaderContext ReaderContext
+        {
+            get;
         }
 
         public PEFile File

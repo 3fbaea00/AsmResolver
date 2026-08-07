@@ -1,14 +1,15 @@
 using AsmResolver.DotNet.ReadyToRun.Enumerations;
+using AsmResolver.DotNet.ReadyToRun.Reader;
 
 namespace AsmResolver.DotNet.ReadyToRun
 {
-    public interface IReadyToRunAbstractSection
+    public interface IReadyToRunAbstractSection 
     {
         ulong GetSectionSize();
 
-        void ReadSection(ReadyToRunDirectory directory, SectionReader reader, uint sectionSize);
+        void ReadSection(ReadyToRunDirectoryReader directoryReader, ref byte source, uint sourceSize);
 
-        void WriteSection(ReadyToRunDirectory directory, SectionWriter writer, uint rva);
+        void WriteSection(ReadyToRunDirectory directory, ref byte destination, uint rva);
 
         virtual void PostInitialization(ReadyToRunDirectory directory) { }
     }
