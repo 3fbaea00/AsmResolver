@@ -2,6 +2,7 @@ using AsmResolver.DotNet.ReadyToRun.Enumerations;
 using AsmResolver.DotNet.ReadyToRun.Internal;
 using AsmResolver.DotNet.ReadyToRun.Internal.Extensions;
 using AsmResolver.DotNet.ReadyToRun.Internal.Structures;
+using AsmResolver.DotNet.ReadyToRun.Reader;
 using AsmResolver.DotNet.ReadyToRun.Sections;
 using AsmResolver.IO;
 using AsmResolver.PE.DotNet;
@@ -191,12 +192,12 @@ namespace AsmResolver.DotNet.ReadyToRun
                 Unsafe.As<byte, READYTORUN_SECTION>(ref Unsafe.Add(ref bytes, sectionHeaderOffset)).Section.Size = sectionSize;
                 sectionHeaderOffset += (uint)sizeof(READYTORUN_SECTION);
 
-                var writer = new SectionWriter(ref Unsafe.Add(ref bytes, sectionContentOffset));
-                section.WriteSection(this, writer, sectionRva);
+                section.WriteSection(this, ref Unsafe.Add(ref bytes, sectionContentOffset), sectionRva);
             }
 
             streamWriter.WriteBytes(byteArray, 0, (int)totalSize);
         }
+
         public static ReadyToRunDirectory FromCustomManagedNativeHeader(CustomManagedNativeHeader header)
         {
             var directory = new ReadyToRunDirectory();

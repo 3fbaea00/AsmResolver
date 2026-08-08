@@ -1,10 +1,10 @@
 using AsmResolver.DotNet.ReadyToRun.Enumerations;
+using AsmResolver.DotNet.ReadyToRun.Internal.Extensions;
 using AsmResolver.DotNet.ReadyToRun.Internal.Structures;
 using AsmResolver.DotNet.ReadyToRun.Reader;
 using AsmResolver.PE.File;
 using System;
 using System.Runtime.CompilerServices;
-using System.Runtime.Intrinsics.X86;
 
 namespace AsmResolver.DotNet.ReadyToRun.Sections.ImportSections
 {
@@ -13,36 +13,46 @@ namespace AsmResolver.DotNet.ReadyToRun.Sections.ImportSections
         public bool LazyInitialize;
         public bool ContainsCodePointers;
 
+        private protected abstract void ReadContent(ref byte content, bool hasAuxData);
+
         public static ImportSection ReadImportSection(ReadyToRunDirectoryReader directoryReader, ref byte source)
         {
             ref var sectionReference = ref Unsafe.As<byte, READYTORUN_IMPORT_SECTION>(ref source);
 
             var sectionRvaSize = Unsafe.As<IMAGE_DATA_DIRECTORY, ulong>(ref sectionReference.Section);
 
+            bool hasAuxData;
             var entrySize = (uint)sectionReference.EntrySize;
         TryAgain:
             if (entrySize == 8)
             {
-
-                const int InitialBufferSize = 1024 * 128;
-                var stackBuffer = stackalloc byte[InitialBufferSize];
-                ref var buffer = ref Unsafe.AsRef<byte>(stackBuffer);
                 var entriesSize = sectionRvaSize >> 32;
-                if (entriesSize > InitialBufferSize * 8 / 24)
+                if (entriesSize != 0)
                 {
-                    var managedBuffer = new byte[entriesSize + entriesSize + entriesSize];
-                    buffer = ref managedBuffer[0];
-                }
+                    const int InitialBufferSize = 1024 * 128;
+                    var stackBuffer = stackalloc byte[InitialBufferSize];
+                    ref var buffer = ref Unsafe.AsRef<byte>(stackBuffer);
 
-                var peFile = directoryReader.RawHeader.File;
-                var signaturesRvau32_auxiliaryDataRvau32 = Unsafe.As<uint, ulong>(ref sectionReference.Signatures);
-                ReadImportEntries64Bit(peFile, ref buffer, sectionRvaSize, signaturesRvau32_auxiliaryDataRvau32);
+                    if (entriesSize > InitialBufferSize * 8 / 24)
+                    {
+                        var managedBuffer = new byte[entriesSize + entriesSize + entriesSize];
+                        buffer = ref managedBuffer[0];
+                    }
+
+                    var peFile = directoryReader.RawHeader.File;
+                    hasAuxData = ReadImportEntries64Bit(peFile, ref buffer, sectionRvaSize, ref sectionReference);
+                }
+                else
+                {
+                    var section = CreateEmptyImportSection(ref sectionReference);
+                    hasAuxData = false;
+                }
             }
             else
             {
                 if (entrySize == 4)
                 {
-                    ReadImportEntries32Bit();
+                    hasAuxData = ReadImportEntries32Bit();
                 }
                 else
                 {
@@ -68,39 +78,87 @@ namespace AsmResolver.DotNet.ReadyToRun.Sections.ImportSections
 
             return importSection;
 
+            // return: has aux data
             [MethodImpl(MethodImplOptions.NoInlining)]
-            static void ReadImportEntries64Bit(PEFile peFile, ref byte destination, ulong sectionRvaSize, ulong signaturesRvau32_auxiliaryDataRvau32)
+            static bool ReadImportEntries64Bit(PEFile peFile, ref byte destination, ulong sectionsRvaSize, ref READYTORUN_IMPORT_SECTION sectionReference)
             {
-                var entriesSize = sectionRvaSize >> 32;
-                var entriesRva = (uint)sectionRvaSize;
-                var entriesOffset = peFile.RvaToFileOffset(entriesRva);
-                var signaturesRva = (uint)signaturesRvau32_auxiliaryDataRvau32;
-                var signaturesOffset = signaturesRva != 0 ? peFile.RvaToFileOffset(signaturesRva) : 0ul;
-                var auxiliaryDatasRva = (uint)(signaturesRvau32_auxiliaryDataRvau32 >> 32);
-                var auxiliaryDatasOffset = auxiliaryDatasRva != 0 ? peFile.RvaToFileOffset(auxiliaryDatasRva) : 0ul;
+                var sectionsSize = sectionsRvaSize >> 32;
+                var sectionsRva = (uint)sectionsRvaSize;
+                peFile.TryGetSectionContainingRva(sectionsRva, out var sectionsSection);
+                ref var sectionsReference = ref Unsafe.Add(ref sectionsSection.Contents.GetData(), sectionsRva - sectionsSection.Rva);
 
-                ref byte source = ref Unsafe.NullRef<byte>();
-                while (entriesSize != 0)
+                var size = (nuint)sectionsSize;
+                while (size != 0)
                 {
-                    entriesSize -= 8;
-                    Unsafe.As<byte, ulong>(ref destination) = Unsafe.As<byte, ulong>(ref source);
-                    destination = ref Unsafe.Add(ref destination, 8);
+                    size -= 8;
+                    Unsafe.As<byte, ulong>(ref Unsafe.Add(ref destination, size)) = Unsafe.As<byte, ulong>(ref Unsafe.Add(ref sectionsReference, size));
+                }
+                destination = ref Unsafe.Add(ref destination, (nuint)sectionsSize);
 
-                    // todo: instead of it use avx
-                    if (signaturesOffset != 0)
+                var signaturesRvau32_auxiliaryDataRvau32 = Unsafe.As<uint, ulong>(ref sectionReference.Signatures);
+                var signaturesRva = (uint)signaturesRvau32_auxiliaryDataRvau32;
+                var signaturesSection = sectionsSection;
+                if (!sectionsSection.ContainsRva(signaturesRva))
+                {
+                    peFile.TryGetSectionContainingRva(signaturesRva, out var section);
+                    signaturesSection = section;
+                }
+                ref var signaturesReference = ref Unsafe.Add(ref signaturesSection.Contents.GetData(), signaturesRva - signaturesSection.Rva);
+
+                sectionsSize >>= 1;
+                size = (nuint)sectionsSize;
+                while (size != 0)
+                {
+                    size -= 4;
+                    Unsafe.As<byte, uint>(ref Unsafe.Add(ref destination, size)) = Unsafe.As<byte, uint>(ref Unsafe.Add(ref signaturesReference, size));
+                }
+                destination = ref Unsafe.Add(ref destination, (nuint)sectionsSize);
+
+                var auxDatasRva = (uint)(signaturesRvau32_auxiliaryDataRvau32 >> 32);
+                if (auxDatasRva != 0)
+                {
+                    var auxDatasSection = sectionsSection;
+                    if (!sectionsSection.ContainsRva(auxDatasRva))
                     {
-                        var signatureRva = Unsafe.As<byte, uint>(ref source);
-                        Unsafe.As<byte, ulong>(ref destination) = signaturesOffset;
-                        destination = ref Unsafe.Add(ref destination, 8);
+                        peFile.TryGetSectionContainingRva(auxDatasRva, out var signaturesSection_);
+                        signaturesSection = signaturesSection_;
                     }
+                    ref var auxDataReference = ref Unsafe.Add(ref auxDatasSection.Contents.GetData(), auxDatasRva - auxDatasSection.Rva);
+
+                    size = (nuint)sectionsSize;
+                    while (size != 0)
+                    {
+                        size -= 4;
+                        Unsafe.As<byte, uint>(ref Unsafe.Add(ref destination, size)) = Unsafe.As<byte, uint>(ref Unsafe.Add(ref auxDataReference, size));
+                    }
+
+                    return true;
+                }
+                else
+                {
+                    return false;
                 }
             }
 
             // add mass rva -> offset converter in ex of PEFile
             [MethodImpl(MethodImplOptions.NoInlining)]
-            static void ReadImportEntries32Bit()
+            static bool ReadImportEntries32Bit()
             {
+                return default;
+            }
 
+            static ImportSection CreateEmptyImportSection(ref READYTORUN_IMPORT_SECTION sectionReference)
+            {
+                ImportSection section = sectionReference.Type switch
+                {
+                    ReadyToRunImportSectionType.Unknown => new UnknownImportSection(),
+                    ReadyToRunImportSectionType.StubDispatch => new StubDispatchImportSection(),
+                    ReadyToRunImportSectionType.StringHandle => new StringHandleImportSection(),
+                    ReadyToRunImportSectionType.ILBodyFixups => new ILBodyFixupsImportSection(),
+                    _ => throw new NotSupportedException()
+                };
+
+                return section;
             }
         }
     }

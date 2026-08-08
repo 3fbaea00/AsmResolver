@@ -40,7 +40,8 @@ namespace AsmResolver.DotNet.ReadyToRun.Reader
 
                 if (peSection is null || !peSection.ContainsRva(content.Section.VirtualAddress))
                 {
-                    peSection = RawHeader.File.GetSectionContainingRva(content.Section.VirtualAddress);
+                    RawHeader.File.TryGetSectionContainingRva(content.Section.VirtualAddress, out var peSection_);
+                    peSection = peSection_;
                     peSectionData = ref peSection.Contents.GetData(out var sectionLength);
                 }
 
@@ -50,8 +51,7 @@ namespace AsmResolver.DotNet.ReadyToRun.Reader
 
                 var fileOffset = peSection.RvaToFileOffset(content.Section.VirtualAddress) - peSection.Offset;
                 ref var sectionData = ref Unsafe.Add(ref peSectionData, (nuint)fileOffset);
-                var reader = new SectionReader(ref sectionData);
-                section.ReadSection(this, reader, content.Section.Size);
+                section.ReadSection(this, ref sectionData, content.Section.Size);
 
                 var index = (int)(content.Type - 100);
                 Unsafe.As<CompilerIdentifierSection, IReadyToRunAbstractSection>(ref Unsafe.Add(ref directory.compilerIdentifierSection, index)) = section;
